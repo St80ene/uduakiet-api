@@ -82,6 +82,19 @@ export class ProductPaginationQueryDto extends BasePaginationQueryDto {
   [key: string]: unknown;
 }
 
+export const PurchaseOrderSortFields: Record<string, string> = {
+  created_at: 'purchase_order.created_at',
+  updated_at: 'purchase_order.updated_at',
+  status: 'purchase_order.status',
+  total_cost: 'purchase_order.total_cost',
+  total_quantity: 'purchase_order.total_quantity',
+} as const;
+
+export const PurchaseOrderSortFieldNames = Object.keys(PurchaseOrderSortFields);
+
+export type PurchaseOrderSortField =
+  (typeof PurchaseOrderSortFieldNames)[number];
+
 export class PurchaseOrderPaginationQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
@@ -90,6 +103,10 @@ export class PurchaseOrderPaginationQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   @IsIn(['DRAFT', 'APPROVED', 'RECEIVED', 'CANCELLED'])
   status?: string;
+
+  @IsOptional()
+  @IsIn(PurchaseOrderSortFieldNames)
+  sortBy?: PurchaseOrderSortField = 'created_at';
 
   @IsOptional()
   @IsString()
@@ -192,6 +209,29 @@ export class UserPaginationQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   @IsIn(Object.keys(USER_SORT_FIELDS))
   sortBy?: UserSortField = 'created_at';
+
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
+  order?: 'ASC' | 'DESC' = 'DESC';
+
+  [key: string]: unknown;
+}
+
+export const PRODUCT_SOURCE_SORT_FIELDS: Record<string, string> = {
+  created_at: 'product_source.created_at',
+  updated_at: 'product_source.updated_at',
+};
+
+export const PRODUCT_SOURCE_SORT_FIELD_NAMES = Object.keys(
+  PRODUCT_SOURCE_SORT_FIELDS,
+);
+export type ProductSourceSortField =
+  (typeof PRODUCT_SOURCE_SORT_FIELD_NAMES)[number];
+
+export class ProductSourcePaginationQueryDto extends BasePaginationQueryDto {
+  @IsOptional()
+  @IsIn(Object.keys(PRODUCT_SOURCE_SORT_FIELDS))
+  sortBy?: ProductSourceSortField = 'created_at';
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])

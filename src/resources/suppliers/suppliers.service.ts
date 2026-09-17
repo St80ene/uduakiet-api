@@ -163,17 +163,6 @@ export class SuppliersService {
     return successResponse('Supplier deleted successfully');
   }
 
-  async search(search: string) {
-    return this.supplierRepository
-      .createQueryBuilder('supplier')
-      .where('supplier.name LIKE :search', {
-        search: `%${search}%`,
-      })
-      .orderBy('supplier.name')
-      .limit(10)
-      .getMany();
-  }
-
   async getSupplierOrThrow(id: string): Promise<Supplier> {
     const supplier = await this.supplierRepository.findOne({
       where: { id },

@@ -12,7 +12,7 @@ import {
 import { CreatePurchaseOrderDto } from './dto/create-purchase_order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
 import { PurchaseOrdersService } from './purchase_orders.service';
-import { BasePaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { PurchaseOrderPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
@@ -26,7 +26,7 @@ export class PurchaseOrdersController {
   }
 
   @Get()
-  findAll(@Query() paginationQuery: BasePaginationQueryDto) {
+  findAll(@Query() paginationQuery: PurchaseOrderPaginationQueryDto) {
     return this.poService.findAll(paginationQuery);
   }
 

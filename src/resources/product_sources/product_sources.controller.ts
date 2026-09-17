@@ -12,7 +12,9 @@ import {
 import { ProductSourcesService } from './product_sources.service';
 import { CreateProductSourceDto } from './dto/create-product_source.dto';
 import { UpdateProductSourceDto } from './dto/update-product_source.dto';
-import { BasePaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { ProductSourcePaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
 @Controller('product-sources')
 export class ProductSourcesController {
@@ -24,8 +26,11 @@ export class ProductSourcesController {
   }
 
   @Get()
-  findAll(@Query() query: BasePaginationQueryDto) {
-    return this.productSourcesService.findAll(query);
+  findAll(
+    @Query() query: ProductSourcePaginationQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.productSourcesService.findAll(user.businessId, query);
   }
 
   @Get(':id')

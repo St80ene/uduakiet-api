@@ -4,7 +4,6 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { In } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, ILike, FindOptionsWhere } from 'typeorm';
 import { CreatePurchaseOrderDto } from './dto/create-purchase_order.dto';
@@ -15,15 +14,13 @@ import {
 } from './entities/purchase_order.entity';
 import { PurchaseOrderItem } from './entities/purchase_order_item.entity';
 import {
-  BasePaginationQueryDto,
   PurchaseOrderPaginationQueryDto,
+  PurchaseOrderSortFields,
 } from '../../common/dto/pagination-query.dto';
 import { Product } from '../products/entities/product.entity';
 import { ProductSource } from '../product_sources/entities/product_source.entity';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { DashboardCard } from '../dashboard/interfaces/initial_interface';
-import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
 import {
   ApiResponse,
   successResponse,
@@ -108,7 +105,10 @@ export class PurchaseOrdersService {
   }
 
   // READ ALL: Find matching orders
-  async findAll(paginationQuery: PurchaseOrderPaginationQueryDto) {
+  async findAll(
+    businessId: string,
+    paginationQuery: PurchaseOrderPaginationQueryDto,
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -117,6 +117,13 @@ export class PurchaseOrdersService {
       supplier_name,
     } = paginationQuery;
     const skip = (page - 1) * limit;
+
+    const { search, order = 'DESC', sortBy = 'created_at' } = paginationQuery;
+
+    const sortColumn = PurchaseOrderSortFields[sortBy];
+
+    const sortOrder: 'ASC' | 'DESC' =
+      order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const findWhere: FindOptionsWhere<PurchaseOrder> = {};
 
@@ -130,15 +137,39 @@ export class PurchaseOrdersService {
       findWhere['supplier_name'] = ILike(`%${supplier_name}%`);
     }
 
+    const queryBuilder = this.purchaseOrderRepository
+      .createQueryBuilder('purchase_order')
+      .leftJoinAndSelect('purchase_order.items', 'items')
+      .where(findWhere)
+      .andWhere('purchase_order.business_id = :businessId', { businessId });
+
     // findAndCount returns an array: [data, totalCount]
-    const [orders, totalItems] =
-      await this.purchaseOrderRepository.findAndCount({
-        relations: { items: true },
-        order: { created_at: 'DESC' },
-        skip: skip,
-        take: limit,
-        where: findWhere,
-      });
+    // const [orders, totalItems] =
+    //   await this.purchaseOrderRepository.findAndCount({
+    //     relations: { items: true },
+    //     order: { created_at: 'DESC' },
+    //     skip: skip,
+    //     take: limit,
+    //     where: findWhere,
+    //   });
+
+    if (search) {
+      queryBuilder.andWhere(
+        `
+          (
+            LOWER(purchase_order.po_number) LIKE LOWER(:search)
+            OR LOWER(purchase_order.status) LIKE LOWER(:search)
+          )
+          `,
+        {
+          search: `%${search}%`,
+        },
+      );
+    }
+
+    queryBuilder.orderBy(sortColumn, sortOrder).skip(skip).take(limit);
+
+    const [orders, totalItems] = await queryBuilder.getManyAndCount();
 
     const totalPages = Math.ceil(totalItems / limit);
 
