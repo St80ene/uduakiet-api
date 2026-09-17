@@ -117,7 +117,7 @@ export class ProductSourcesService {
       throw new NotFoundException(`Product Source with ID ${id} not found`);
     }
 
-    await this.productSourceRepository.remove(productSource);
+    await this.productSourceRepository.softRemove(productSource);
 
     return successResponse('Product Source deleted successfully', null);
   }
