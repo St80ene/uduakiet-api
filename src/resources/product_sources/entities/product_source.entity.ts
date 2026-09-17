@@ -18,7 +18,7 @@ export class ProductSource {
   @Column({ type: 'varchar', length: 36, nullable: true })
   product_id!: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   supplier_id!: string;
 
   // Relation: Many product sources can belong to one supplier
@@ -30,6 +30,7 @@ export class ProductSource {
 
   // Bidirectional link: Let's us do: productRepository.find({ relations: { source: true } })
   @OneToOne(() => Product, (product) => product.source)
+  @JoinColumn({ name: 'product_id' })
   product!: Product;
 
   @CreateDateColumn()

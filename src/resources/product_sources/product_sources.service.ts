@@ -9,7 +9,11 @@ import { FindManyOptions, Repository } from 'typeorm';
 import { ProductSource } from './entities/product_source.entity';
 import { CreateProductSourceDto } from './dto/create-product_source.dto';
 import { UpdateProductSourceDto } from './dto/update-product_source.dto';
-import { BasePaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import {
+  PaginationMeta,
+  PRODUCT_SOURCE_SORT_FIELDS,
+  ProductSourcePaginationQueryDto,
+} from '../../common/dto/pagination-query.dto';
 import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
 import {
   ApiResponse,
@@ -49,30 +53,66 @@ export class ProductSourcesService {
   }
 
   async findAll(
-    paginationQuery: BasePaginationQueryDto,
-  ): Promise<ApiResponse<{ productSources: ProductSource[]; meta: any }>> {
+    businessId: string,
+    paginationQuery: ProductSourcePaginationQueryDto,
+  ): Promise<
+    ApiResponse<{
+      productSources: ProductSource[];
+      meta: PaginationMeta;
+    }>
+  > {
     const {
       page: pageNumber,
       limit: limitNumber,
       skip,
     } = getPaginationOptions(paginationQuery);
 
-    const findCondition: FindManyOptions = {
-      skip: skip,
-      take: limitNumber,
-      order: { created_at: 'DESC' },
-    };
+    const { search, order = 'DESC', sortBy = 'created_at' } = paginationQuery;
 
-    const [productSources, total] =
-      await this.productSourceRepository.findAndCount(findCondition);
+    const sortColumn = PRODUCT_SOURCE_SORT_FIELDS[sortBy];
+
+    const sortOrder: 'ASC' | 'DESC' =
+      order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const queryBuilder = this.productSourceRepository
+      .createQueryBuilder('product_source')
+      .leftJoinAndSelect('product_source.supplier', 'supplier')
+      .leftJoinAndSelect('product_source.product', 'product');
+    // .leftJoin('product.business', 'business')
+    // .where('business.id = :businessId', {
+    //   businessId,
+    // });
+
+    if (search) {
+      queryBuilder.andWhere(
+        `
+          (
+            LOWER(product.name) LIKE LOWER(:search)
+            OR LOWER(supplier.name) LIKE LOWER(:search)
+          )
+          `,
+        {
+          search: `%${search}%`,
+        },
+      );
+    }
+
+    queryBuilder.orderBy(sortColumn, sortOrder).skip(skip).take(limitNumber);
+
+    const [productSources, totalItems] = await queryBuilder.getManyAndCount();
+
+    const totalPages = Math.ceil(totalItems / limitNumber);
 
     return successResponse('Product sources retrieved successfully', {
       productSources,
       meta: {
-        total,
-        page: pageNumber,
-        limit: limitNumber,
-        totalPages: Math.ceil(total / limitNumber),
+        totalItems,
+        itemCount: productSources.length,
+        itemsPerPage: limitNumber,
+        totalPages,
+        currentPage: pageNumber,
+        hasNextPage: pageNumber < totalPages,
+        hasPreviousPage: pageNumber > 1,
       },
     });
   }

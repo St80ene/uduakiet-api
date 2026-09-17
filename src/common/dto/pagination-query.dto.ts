@@ -216,3 +216,26 @@ export class UserPaginationQueryDto extends BasePaginationQueryDto {
 
   [key: string]: unknown;
 }
+
+export const PRODUCT_SOURCE_SORT_FIELDS: Record<string, string> = {
+  created_at: 'product_source.created_at',
+  updated_at: 'product_source.updated_at',
+};
+
+export const PRODUCT_SOURCE_SORT_FIELD_NAMES = Object.keys(
+  PRODUCT_SOURCE_SORT_FIELDS,
+);
+export type ProductSourceSortField =
+  (typeof PRODUCT_SOURCE_SORT_FIELD_NAMES)[number];
+
+export class ProductSourcePaginationQueryDto extends BasePaginationQueryDto {
+  @IsOptional()
+  @IsIn(Object.keys(PRODUCT_SOURCE_SORT_FIELDS))
+  sortBy?: ProductSourceSortField = 'created_at';
+
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
+  order?: 'ASC' | 'DESC' = 'DESC';
+
+  [key: string]: unknown;
+}
