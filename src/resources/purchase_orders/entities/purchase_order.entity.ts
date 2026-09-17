@@ -33,8 +33,11 @@ export class PurchaseOrder {
   @Column()
   supplier_id!: string;
 
-  @Column()
+  @Column({ type: 'varchar', length: 36 })
   store_id!: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  business_id!: string;
 
   @Column({ type: 'varchar', length: 30, default: PurchaseOrderStatus.DRAFT })
   status?: PurchaseOrderStatus;

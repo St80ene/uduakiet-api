@@ -105,7 +105,10 @@ export class PurchaseOrdersService {
   }
 
   // READ ALL: Find matching orders
-  async findAll(paginationQuery: PurchaseOrderPaginationQueryDto) {
+  async findAll(
+    businessId: string,
+    paginationQuery: PurchaseOrderPaginationQueryDto,
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -137,7 +140,8 @@ export class PurchaseOrdersService {
     const queryBuilder = this.purchaseOrderRepository
       .createQueryBuilder('purchase_order')
       .leftJoinAndSelect('purchase_order.items', 'items')
-      .where(findWhere);
+      .where(findWhere)
+      .andWhere('purchase_order.business_id = :businessId', { businessId });
 
     // findAndCount returns an array: [data, totalCount]
     // const [orders, totalItems] =
