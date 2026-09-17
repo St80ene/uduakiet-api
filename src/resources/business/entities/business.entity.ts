@@ -17,6 +17,7 @@ import { Store } from '../../stores/entities/store.entity';
 import { CloudinaryImage } from '../../../common/utils/helpers/cloudinary/cloudinary.service';
 import { Stock } from '../../stocks/entities/stock.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
+import { ProductSource } from '../../product_sources/entities/product_source.entity';
 
 export enum BusinessStatus {
   ACTIVE = 'ACTIVE',
@@ -230,6 +231,9 @@ export class Business extends BaseEntity {
 
   @OneToMany(() => AuditLog, (audit_log) => audit_log.business)
   audit_logs!: AuditLog[];
+
+  @OneToMany(() => ProductSource, (product_source) => product_source.business)
+  product_sources!: ProductSource[];
 
   // ==========================================================
   // TIMESTAMPS

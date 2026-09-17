@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { Product } from '../../products/entities/product.entity';
+import { Business } from '../../business/entities/business.entity';
 
 @Entity({ name: 'product_sources' })
 export class ProductSource {
@@ -19,6 +20,9 @@ export class ProductSource {
   product_id!: string;
 
   @Column({ type: 'varchar', length: 36, nullable: true })
+  business_id!: string;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
   supplier_id!: string;
 
   // Relation: Many product sources can belong to one supplier
@@ -27,6 +31,12 @@ export class ProductSource {
   })
   @JoinColumn({ name: 'supplier_id' })
   supplier!: Supplier;
+
+  @ManyToOne(() => Business, (business) => business.product_sources, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'business_id' })
+  business!: Business;
 
   // Bidirectional link: Let's us do: productRepository.find({ relations: { source: true } })
   @OneToOne(() => Product, (product) => product.source)

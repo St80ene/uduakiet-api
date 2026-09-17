@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 
 import { ProductSource } from './entities/product_source.entity';
 import { CreateProductSourceDto } from './dto/create-product_source.dto';
@@ -77,11 +77,11 @@ export class ProductSourcesService {
     const queryBuilder = this.productSourceRepository
       .createQueryBuilder('product_source')
       .leftJoinAndSelect('product_source.supplier', 'supplier')
-      .leftJoinAndSelect('product_source.product', 'product');
-    // .leftJoin('product.business', 'business')
-    // .where('business.id = :businessId', {
-    //   businessId,
-    // });
+      .leftJoinAndSelect('product_source.product', 'product')
+      .leftJoin('product.business', 'business')
+      .where('business.id = :businessId', {
+        businessId,
+      });
 
     if (search) {
       queryBuilder.andWhere(
