@@ -3,9 +3,11 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
+  ConflictException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, ILike, FindOptionsWhere } from 'typeorm';
+import { Repository, DataSource, ILike, FindOptionsWhere, In } from 'typeorm';
 import { CreatePurchaseOrderDto } from './dto/create-purchase_order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
 import {
@@ -25,6 +27,10 @@ import {
   ApiResponse,
   successResponse,
 } from '../../common/utils/response.utils';
+import { Business } from '../business/entities/business.entity';
+import { Store } from '../stores/entities/store.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -47,55 +53,257 @@ export class PurchaseOrdersService {
   async create(
     createPoDto: CreatePurchaseOrderDto,
     creatorId: string,
+    businessId: string,
+    storeId: string,
   ): Promise<ApiResponse<PurchaseOrder>> {
     const queryRunner = this.dataSource.createQueryRunner();
+
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      let totalCost: number = 0;
+      const manager = queryRunner.manager;
+      const { supplier_id, items, status } = createPoDto;
 
-      if (createPoDto.status !== PurchaseOrderStatus.DRAFT) {
-        // 1. Calculate the total cost across all nested items
-        totalCost = createPoDto.items.reduce(
-          (sum, item) =>
-            sum + item.quantity_requested! * item.estimated_unit_cost!,
-          0,
+      // =========================================================
+      // 1. Validate required fields
+      // =========================================================
+
+      if (!businessId) {
+        throw new BadRequestException('Business is required.');
+      }
+
+      if (!storeId) {
+        throw new BadRequestException('Store is required.');
+      }
+
+      if (!supplier_id) {
+        throw new BadRequestException('Supplier is required.');
+      }
+
+      if (!items?.length) {
+        throw new BadRequestException(
+          'Purchase order must contain at least one item.',
         );
       }
 
-      // 2. Instantiate the root purchase order record
-      const poRecord = queryRunner.manager.create(PurchaseOrder, {
-        po_number: `PO-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        supplier_id: createPoDto.supplier_id,
-        total_estimated_cost: totalCost,
-        created_by_id: creatorId,
-        status: PurchaseOrderStatus.DRAFT,
+      // =========================================================
+      // 2. Validate business
+      // =========================================================
+
+      const business = await manager.findOne(Business, {
+        where: {
+          id: businessId,
+        },
       });
 
-      const savedPo = await queryRunner.manager.save(PurchaseOrder, poRecord);
+      if (!business) {
+        throw new NotFoundException('Business not found.');
+      }
 
-      // 3. Instantiate and link the child line items
-      const poItems = createPoDto.items.map((item) =>
-        queryRunner.manager.create(PurchaseOrderItem, {
+      // =========================================================
+      // 3. Validate store
+      // =========================================================
+
+      const store = await manager.findOne(Store, {
+        where: {
+          id: storeId,
+          business_id: businessId,
+        },
+      });
+
+      if (!store) {
+        throw new NotFoundException(
+          'Store not found or does not belong to this business.',
+        );
+      }
+
+      // =========================================================
+      // 4. Validate creator
+      // =========================================================
+
+      const creator = await manager.findOne(User, {
+        where: {
+          id: creatorId,
+          business_id: businessId,
+        },
+      });
+
+      if (!creator) {
+        throw new NotFoundException(
+          'Creator not found or does not belong to this business.',
+        );
+      }
+
+      // =========================================================
+      // 5. Validate supplier
+      // =========================================================
+
+      const supplier = await manager.findOne(Supplier, {
+        where: {
+          id: supplier_id,
+          business_id: businessId,
+        },
+      });
+
+      if (!supplier) {
+        throw new NotFoundException(
+          'Supplier not found or does not belong to this business.',
+        );
+      }
+
+      // =========================================================
+      // 6. Generate and check PO number
+      // =========================================================
+
+      const uniquePoNumber = `PO-${Date.now()}-${Math.floor(
+        1000 + Math.random() * 9000,
+      )}`;
+
+      const existingPo = await manager.findOne(PurchaseOrder, {
+        where: {
+          po_number: uniquePoNumber,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingPo) {
+        throw new ConflictException('Purchase order number already exists.');
+      }
+
+      // =========================================================
+      // 7. Validate duplicate products in request
+      // =========================================================
+
+      const productIds = items.map((item) => item.product_id);
+      const uniqueProductIds = [...new Set(productIds)];
+
+      if (uniqueProductIds.length !== productIds.length) {
+        throw new BadRequestException(
+          'A product cannot appear more than once in a purchase order.',
+        );
+      }
+
+      // =========================================================
+      // 8. Validate products
+      // =========================================================
+
+      const products = await manager.find(Product, {
+        where: {
+          business_id: businessId,
+          id: In(uniqueProductIds),
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (products.length !== uniqueProductIds.length) {
+        const foundProductIds = new Set(products.map((product) => product.id));
+
+        const missingProductIds = uniqueProductIds.filter(
+          (id) => !foundProductIds.has(id),
+        );
+
+        throw new NotFoundException(
+          `Product(s) not found: ${missingProductIds.join(', ')}`,
+        );
+      }
+
+      // =========================================================
+      // 9. Validate item quantities and costs
+      // =========================================================
+
+      for (const item of items) {
+        if ((item.quantity_requested ?? 0) <= 0) {
+          throw new BadRequestException(
+            `Quantity requested must be greater than zero for product ${item.product_id}.`,
+          );
+        }
+
+        if ((item.estimated_unit_cost ?? 0) < 0) {
+          throw new BadRequestException(
+            `Estimated unit cost cannot be negative for product ${item.product_id}.`,
+          );
+        }
+      }
+
+      // =========================================================
+      // 10. Calculate total
+      // =========================================================
+
+      const total_estimated_cost =
+        status === PurchaseOrderStatus.DRAFT
+          ? 0
+          : items.reduce(
+              (sum, item) =>
+                sum +
+                (item?.quantity_requested ?? 0) *
+                  (item?.estimated_unit_cost ?? 0),
+              0,
+            );
+
+      // =========================================================
+      // 11. Create purchase order
+      // =========================================================
+
+      const poRecord = manager.create(PurchaseOrder, {
+        po_number: uniquePoNumber,
+        supplier_id: supplier.id,
+        total_estimated_cost,
+        created_by_id: creator.id,
+        business_id: businessId,
+        store_id: storeId,
+        status: status ?? PurchaseOrderStatus.DRAFT,
+      });
+
+      const savedPo = await manager.save(PurchaseOrder, poRecord);
+
+      // =========================================================
+      // 12. Create purchase order items
+      // =========================================================
+
+      const poItems = items.map((item) =>
+        manager.create(PurchaseOrderItem, {
           ...item,
           purchase_order_id: savedPo.id,
         }),
       );
 
-      await queryRunner.manager.save(PurchaseOrderItem, poItems);
+      await manager.save(PurchaseOrderItem, poItems);
+
+      // =========================================================
+      // 13. Commit transaction
+      // =========================================================
+
       await queryRunner.commitTransaction();
 
-      // Return complete object back to caller with loaded items relation
-      const existing_purchase_order = await this.findOne(savedPo.id);
+      // =========================================================
+      // 14. Return complete purchase order
+      // =========================================================
+
+      const existingPurchaseOrder = await this.findOne(
+        savedPo.id,
+        businessId,
+        storeId,
+      );
 
       return successResponse(
         'Purchase Order created',
-        existing_purchase_order.data,
+        existingPurchaseOrder.data,
       );
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      console.error('Failed to instantiate Purchase Order:', error);
+
+      // Preserve intentional HTTP errors
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Failed to create Purchase Order:', error);
+
       throw new InternalServerErrorException(
         'Could not create purchase order entry.',
       );
@@ -108,6 +316,7 @@ export class PurchaseOrdersService {
   async findAll(
     businessId: string,
     paginationQuery: PurchaseOrderPaginationQueryDto,
+    storeId?: string,
   ) {
     const {
       page = 1,
@@ -133,6 +342,9 @@ export class PurchaseOrdersService {
     if (approved_by_id) {
       findWhere['approved_by_id'] = ILike(`%${approved_by_id}%`);
     }
+    if (storeId) {
+      findWhere['store_id'] = ILike(`%${storeId}%`);
+    }
     if (supplier_name) {
       findWhere['supplier_name'] = ILike(`%${supplier_name}%`);
     }
@@ -142,16 +354,6 @@ export class PurchaseOrdersService {
       .leftJoinAndSelect('purchase_order.items', 'items')
       .where(findWhere)
       .andWhere('purchase_order.business_id = :businessId', { businessId });
-
-    // findAndCount returns an array: [data, totalCount]
-    // const [orders, totalItems] =
-    //   await this.purchaseOrderRepository.findAndCount({
-    //     relations: { items: true },
-    //     order: { created_at: 'DESC' },
-    //     skip: skip,
-    //     take: limit,
-    //     where: findWhere,
-    //   });
 
     if (search) {
       queryBuilder.andWhere(
@@ -186,9 +388,18 @@ export class PurchaseOrdersService {
   }
 
   // READ ONE: Detailed lookup via ID reference
-  async findOne(id: string): Promise<ApiResponse<PurchaseOrder>> {
+  async findOne(
+    id: string,
+    businessId: string,
+    storeId?: string,
+  ): Promise<ApiResponse<PurchaseOrder>> {
     const purchase_order = await this.purchaseOrderRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        business_id: businessId,
+        // To allow Company executives to search for purchase orders across all stores, we make the storeId optional in the query.
+        ...(storeId && { store_id: storeId }),
+      },
       relations: { items: true },
     });
     if (!purchase_order) {
@@ -207,14 +418,20 @@ export class PurchaseOrdersService {
   async update(
     id: string,
     updatePoDto: UpdatePurchaseOrderDto,
+    businessId: string,
+    storeId?: string,
   ): Promise<ApiResponse<PurchaseOrder>> {
     const purchase_order = await this.purchaseOrderRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        business_id: businessId,
+        ...(storeId && { store_id: storeId }),
+      },
     });
 
     if (!purchase_order)
       throw new NotFoundException(
-        `Product with ID "${id}" could not be found.`,
+        `Purchase Order with ID "${id}" could not be found.`,
       );
 
     // Guard: Prevent modification of completed orders unless explicitly handling arrivals
@@ -236,12 +453,12 @@ export class PurchaseOrdersService {
   }
 
   // DELETE: Remove drafts safely
-  async remove(id: string): Promise<ApiResponse<null>> {
-    const purchase_order = await this.findOne(id);
+  async remove(id: string, businessId: string): Promise<ApiResponse<null>> {
+    const purchase_order = await this.findOne(id, businessId);
 
     if (!purchase_order)
       throw new NotFoundException(
-        `Product with ID "${id}" could not be found.`,
+        `Purchase Order with ID "${id}" could not be found.`,
       );
 
     // Business rule safeguard: Only allow deleting un-submitted drafts
@@ -259,12 +476,16 @@ export class PurchaseOrdersService {
   //   supplierId: string,
   //   productsToReplenish: Product[],
   //   creatorId: string,
+  //   businessId: string,
+  //   storeId: string,
   // ) {
   //   // Check if an open DRAFT Purchase Order already exists for this supplier
   //   const existingDraft = await this.purchaseOrderRepository.findOne({
   //     where: {
   //       supplier_id: supplierId, // Switched from supplier_name to secure relation ID
   //       status: PurchaseOrderStatus.DRAFT,
+  //       ...(businessId && { business_id: businessId }),
+  //       ...(storeId && { store_id: storeId }),
   //     },
   //     relations: { items: true },
   //   });
@@ -283,7 +504,7 @@ export class PurchaseOrdersService {
   //       };
   //     });
 
-  //     await this.create(newDraft, creatorId);
+  //     await this.create(newDraft, creatorId, businessId, storeId);
   //   } else {
   //     // Merge deficient items into the existing open draft if they aren't already listed
   //     const existingProductIds = new Set(

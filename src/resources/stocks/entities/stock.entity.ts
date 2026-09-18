@@ -14,22 +14,7 @@ import {
 import { Product } from '../../products/entities/product.entity';
 import { Business } from '../../business/entities/business.entity';
 import { Store } from '../../stores/entities/store.entity';
-import {
-  StockMovement,
-  StockMovementDirection,
-  StockMovementReferenceType,
-  StockMovementType,
-} from '../../stock_movements/entities/stock_movement.entity';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { StockMovement } from '../../stock_movements/entities/stock_movement.entity';
 
 @Entity('stocks')
 @Unique('UQ_stock_product_store', ['product_id', 'store_id'])
@@ -64,14 +49,7 @@ export class Stock extends BaseEntity {
    * - ml  → 2500
    */
   @Column({ type: 'int', default: 0 })
-  quantity!: number;
-
-  /**
-   * Quantity at or below which the product is considered low stock
-   * for this particular store.
-   */
-  @Column({ type: 'int', default: 5 })
-  reorder_level!: number;
+  current_quantity!: number;
 
   @ManyToOne(() => Product, (product) => product.stocks, {
     nullable: false,
@@ -112,33 +90,4 @@ export class Stock extends BaseEntity {
     onUpdate: 'CURRENT_TIMESTAMP',
   })
   updated_at!: Date;
-}
-
-export class AdjustStockDto {
-  @IsUUID()
-  @IsNotEmpty()
-  product_id!: string;
-
-  @IsEnum(StockMovementType)
-  type!: StockMovementType;
-
-  @IsEnum(StockMovementDirection)
-  direction!: StockMovementDirection;
-
-  @IsNumber()
-  @Min(1)
-  @Type(() => Number)
-  quantity!: number;
-
-  @IsOptional()
-  @IsString()
-  reason?: string;
-
-  @IsOptional()
-  @IsEnum(StockMovementReferenceType)
-  reference_type?: StockMovementReferenceType;
-
-  @IsOptional()
-  @IsUUID()
-  reference_id?: string;
 }

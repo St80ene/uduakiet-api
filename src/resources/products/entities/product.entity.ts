@@ -85,6 +85,13 @@ export class Product extends BaseEntity {
   })
   selling_price!: number;
 
+  /**
+   * Quantity at or below which the product is considered low stock
+   * for the business.
+   */
+  @Column({ type: 'int', default: 5 })
+  default_reorder_point!: number;
+
   @IsEnum(UomType, {
     message: 'Invalid UOM type. Must be one of: UNIT, WEIGHT, VOLUME.',
   })

@@ -22,19 +22,12 @@ export enum StockMovementType {
   DAMAGE = 'DAMAGE',
   LOSS = 'LOSS',
   REVERSAL = 'REVERSAL',
+  PURCHASE_ORDER = 'PURCHASE_ORDER',
 }
 
 export enum StockMovementDirection {
-  IN = 'IN',
-  OUT = 'OUT',
-}
-
-export enum StockMovementReferenceType {
-  PURCHASE_ORDER = 'PURCHASE_ORDER',
-  STOCK_ADJUSTMENT = 'STOCK_ADJUSTMENT',
-  STOCK_TRANSFER = 'STOCK_TRANSFER',
-  SALE = 'SALE',
-  STOCK_MOVEMENT = 'STOCK_MOVEMENT',
+  IN = 'INFLOW',
+  OUT = 'OUTFLOW',
 }
 
 @Entity('stock_movements')
@@ -55,7 +48,7 @@ export class StockMovement extends BaseEntity {
   business_id!: string;
 
   @Column({ type: 'varchar', length: 36 })
-  created_by_id!: string | null;
+  created_by_id?: string | null;
 
   @Column({
     type: 'varchar',
@@ -69,7 +62,7 @@ export class StockMovement extends BaseEntity {
    */
   @Column({
     type: 'varchar',
-    length: 10,
+    length: 20,
   })
   direction!: StockMovementDirection;
 
@@ -78,19 +71,19 @@ export class StockMovement extends BaseEntity {
    *
    * Direction determines whether it is added or removed.
    */
-  @Column({ type: 'int' })
+  @Column({ type: 'int', unsigned: true })
   quantity!: number;
 
   /**
    * Stock balance before this movement.
    */
-  @Column({ type: 'int' })
+  @Column({ type: 'int', unsigned: true })
   quantity_before!: number;
 
   /**
    * Stock balance after this movement.
    */
-  @Column({ type: 'int' })
+  @Column({ type: 'int', unsigned: true })
   quantity_after!: number;
 
   /**
@@ -113,37 +106,10 @@ export class StockMovement extends BaseEntity {
     scale: 2,
     nullable: true,
   })
-  unit_selling_price!: number | null;
+  unit_selling_price?: number | null;
 
-  /**
-   * Human-readable explanation.
-   *
-   * Example:
-   * "Damaged during stock count"
-   */
-  @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-  })
-  reason!: string | null;
-
-  /**
-   * Optional link to the business object that caused the movement.
-   */
-  @Column({
-    type: 'varchar',
-    length: 30,
-    nullable: true,
-  })
-  reference_type!: StockMovementReferenceType | null;
-
-  @Column({
-    type: 'varchar',
-    length: 36,
-    nullable: true,
-  })
-  reference_id!: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  reason?: string;
 
   @ManyToOne(() => Stock, (stock) => stock.movements, {
     nullable: false,
@@ -167,7 +133,7 @@ export class StockMovement extends BaseEntity {
     onUpdate: 'CASCADE',
   })
   @JoinColumn({ name: 'created_by_id' })
-  created_by!: User | null;
+  created_by?: User | null;
 
   @CreateDateColumn({
     type: 'datetime',

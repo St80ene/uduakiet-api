@@ -123,29 +123,10 @@ export class ProductsService {
         uom_display_name: createProductDto.uom_display_name,
         category_id: createProductDto.category_id ?? null,
         business_id: user.businessId,
+        default_reorder_point: createProductDto.default_reorder_point ?? 5,
       });
 
       const savedProduct = await queryRunner.manager.save(Product, product);
-
-      /**
-       * Product is business-level data.
-       *
-       * Stock is store-level data.
-       *
-       * Therefore we only initialize a Stock row when the
-       * authenticated user belongs to a store.
-       */
-      if (store) {
-        const stock = queryRunner.manager.create(Stock, {
-          product_id: savedProduct.id,
-          business_id: user.businessId,
-          store_id: store.id,
-          quantity: 0,
-          reorder_level: 5,
-        });
-
-        await queryRunner.manager.save(Stock, stock);
-      }
 
       await queryRunner.commitTransaction();
 

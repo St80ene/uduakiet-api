@@ -4,13 +4,11 @@ import {
   IsNumber,
   IsNotEmpty,
   IsOptional,
-  IsString,
   IsUUID,
   Min,
 } from 'class-validator';
 import {
   StockMovementDirection,
-  StockMovementReferenceType,
   StockMovementType,
 } from '../entities/stock_movement.entity';
 
@@ -36,6 +34,20 @@ export class CreateStockMovementDto {
   })
   @Type(() => Number)
   quantity!: number;
+
+  @IsNumber()
+  @Min(1, {
+    message: 'Quantity After must be at least 1.',
+  })
+  @Type(() => Number)
+  quantity_after!: number;
+
+  @IsNumber()
+  @Min(1, {
+    message: 'Quantity Before must be at least 1.',
+  })
+  @Type(() => Number)
+  quantity_before!: number;
 
   @IsNumber(
     { maxDecimalPlaces: 2 },
@@ -63,19 +75,4 @@ export class CreateStockMovementDto {
   @Type(() => Number)
   @IsOptional()
   unit_selling_price?: number;
-
-  @IsString()
-  @IsOptional()
-  reason?: string;
-
-  @IsEnum(StockMovementReferenceType, {
-    message:
-      'Invalid reference type. Must be a valid stock movement reference.',
-  })
-  @IsOptional()
-  reference_type?: StockMovementReferenceType;
-
-  @IsUUID()
-  @IsOptional()
-  reference_id?: string;
 }
