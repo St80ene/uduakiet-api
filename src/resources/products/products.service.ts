@@ -188,6 +188,7 @@ export class ProductsService {
     const queryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.source', 'source')
       .where('product.deleted_at IS NULL')
       .andWhere('product.business_id = :businessId', {
         businessId: user.businessId,
@@ -254,6 +255,7 @@ export class ProductsService {
           store: true,
         },
         category: true,
+        source: true,
       },
     });
 

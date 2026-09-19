@@ -2,9 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
+  HttpException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { ProductSource } from './entities/product_source.entity';
 import { CreateProductSourceDto } from './dto/create-product_source.dto';
@@ -19,37 +22,115 @@ import {
   ApiResponse,
   successResponse,
 } from '../../common/utils/response.utils';
+import { Business } from '../business/entities/business.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
+import { Product } from '../products/entities/product.entity';
 
 @Injectable()
 export class ProductSourcesService {
   constructor(
     @InjectRepository(ProductSource)
     private readonly productSourceRepository: Repository<ProductSource>,
+
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
+    businessId: string,
     createProductSourceDto: CreateProductSourceDto,
   ): Promise<ApiResponse<ProductSource>> {
     const { product_id, supplier_id } = createProductSourceDto;
 
-    // Check if this product-supplier link already exists
-    const existingSource = await this.productSourceRepository.findOne({
-      where: { product_id, supplier_id },
-    });
-
-    if (existingSource) {
-      throw new ConflictException(
-        'Product source relation for this product and supplier already exists',
-      );
+    if (!businessId) {
+      throw new BadRequestException('Business is required.');
     }
 
-    const productSource = this.productSourceRepository.create(
-      createProductSourceDto,
-    );
+    const queryRunner = this.dataSource.createQueryRunner();
 
-    const savedSource = await this.productSourceRepository.save(productSource);
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    return successResponse('Product Source created successfully', savedSource);
+    try {
+      const manager = queryRunner.manager;
+
+      // Validate entities
+      const business = await manager.findOne(Business, {
+        where: {
+          id: businessId,
+        },
+      });
+
+      if (!business) {
+        throw new NotFoundException('Business not found.');
+      }
+
+      const supplier = await manager.findOne(Supplier, {
+        where: {
+          id: supplier_id,
+          business_id: businessId,
+        },
+      });
+
+      if (!supplier) {
+        throw new NotFoundException(
+          'Supplier not found or does not belong to this business.',
+        );
+      }
+
+      const product = await manager.findOne(Product, {
+        where: {
+          id: product_id,
+          business_id: businessId,
+        },
+      });
+
+      if (!product) {
+        throw new NotFoundException(
+          'Product not found or does not belong to this business.',
+        );
+      }
+
+      const existing_product_source = await manager.findOne(ProductSource, {
+        where: {
+          product_id,
+          business_id: businessId,
+          supplier_id,
+        },
+      });
+
+      if (existing_product_source) {
+        throw new ConflictException('Supplier exist for this product');
+      }
+
+      const product_source = manager.create(ProductSource, {
+        product_id,
+        business_id: businessId,
+        supplier_id,
+      });
+
+      const saved_product_source = await manager.save(
+        ProductSource,
+        product_source,
+      );
+
+      return successResponse(
+        'Supplier and Product link created successfully',
+        saved_product_source,
+      );
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+
+      // Preserve intentional HTTP errors
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Could not create Product supplier entry.',
+      );
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async findAll(
