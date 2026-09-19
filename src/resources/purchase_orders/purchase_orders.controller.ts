@@ -14,6 +14,7 @@ import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
 import { PurchaseOrdersService } from './purchase_orders.service';
 import { PurchaseOrderPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { type AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
@@ -22,6 +23,7 @@ export class PurchaseOrdersController {
   @Post()
   create(
     @Body() createPurchaseOrderDto: CreatePurchaseOrderDto,
+    @CurrentUser()
     { id, businessId, storeId }: AuthenticatedUser,
   ) {
     return this.poService.create(
@@ -35,6 +37,7 @@ export class PurchaseOrdersController {
   @Get()
   findAll(
     @Query() paginationQuery: PurchaseOrderPaginationQueryDto,
+    @CurrentUser()
     { businessId, storeId }: AuthenticatedUser,
   ) {
     return this.poService.findAll(businessId, paginationQuery, storeId);
@@ -43,6 +46,7 @@ export class PurchaseOrdersController {
   @Get(':id')
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser()
     { businessId, storeId }: AuthenticatedUser,
   ) {
     return this.poService.findOne(id, businessId, storeId);
@@ -51,6 +55,7 @@ export class PurchaseOrdersController {
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser()
     { businessId, storeId }: AuthenticatedUser,
     @Body() updatePurchaseOrderDto: UpdatePurchaseOrderDto,
   ) {
@@ -64,6 +69,7 @@ export class PurchaseOrdersController {
 
   @Delete(':id')
   remove(
+    @CurrentUser()
     { businessId }: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
