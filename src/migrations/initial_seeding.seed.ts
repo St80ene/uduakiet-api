@@ -82,6 +82,12 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         JSON.stringify({
           themeColor: '#06b6d4',
           enableNotifications: true,
+          enableMultiBranch: true,
+          lowStockThreshold: 10,
+          enableReceiptQR: true,
+          receiptFooterText:
+            'Thank you for shopping at UduaKiet! One Market, Unlimited Possibilities.',
+          defaultTaxRate: 7.5,
         }),
       ],
     );
