@@ -54,7 +54,7 @@ export class PurchaseOrdersService {
     createPoDto: CreatePurchaseOrderDto,
     creatorId: string,
     businessId: string,
-    storeId: string,
+    storeId?: string,
   ): Promise<ApiResponse<PurchaseOrder>> {
     const queryRunner = this.dataSource.createQueryRunner();
 
@@ -71,10 +71,6 @@ export class PurchaseOrdersService {
 
       if (!businessId) {
         throw new BadRequestException('Business is required.');
-      }
-
-      if (!storeId) {
-        throw new BadRequestException('Store is required.');
       }
 
       if (!supplier_id) {
@@ -104,18 +100,13 @@ export class PurchaseOrdersService {
       // =========================================================
       // 3. Validate store
       // =========================================================
-
-      const store = await manager.findOne(Store, {
-        where: {
-          id: storeId,
-          business_id: businessId,
-        },
-      });
-
-      if (!store) {
-        throw new NotFoundException(
-          'Store not found or does not belong to this business.',
-        );
+      if (storeId) {
+        await manager.findOne(Store, {
+          where: {
+            id: storeId,
+            business_id: businessId,
+          },
+        });
       }
 
       // =========================================================

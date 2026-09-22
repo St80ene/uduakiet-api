@@ -233,7 +233,7 @@ export class Business extends BaseEntity {
   audit_logs!: AuditLog[];
 
   @OneToMany(() => ProductSource, (product_source) => product_source.business)
-  product_sources!: ProductSource[];
+  product_sources!: ProductSource[]; // Table to link suppliers and products
 
   // ==========================================================
   // TIMESTAMPS

@@ -30,6 +30,7 @@ export enum StockMovementDirection {
   OUT = 'OUTFLOW',
 }
 
+// Store level movement reporting of Stocks
 @Entity('stock_movements')
 export class StockMovement extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')

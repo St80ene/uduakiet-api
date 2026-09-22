@@ -309,6 +309,8 @@ export class AuthService {
       },
       relations: {
         role: true,
+        business: false,
+        store: false,
       },
     });
 
@@ -376,7 +378,7 @@ export class AuthService {
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: '24h',
+      expiresIn: '1h',
     });
 
     const refreshToken = await this.jwtService.signAsync(payload, {

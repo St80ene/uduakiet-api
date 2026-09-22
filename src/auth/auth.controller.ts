@@ -29,8 +29,9 @@ export class AuthController {
   }
 
   @Post('refresh')
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto.refreshToken);
+  refresh(@Body() { refreshToken }: RefreshTokenDto) {
+    console.log({ refreshToken });
+    return this.authService.refresh(refreshToken);
   }
 
   @Post('change-password')

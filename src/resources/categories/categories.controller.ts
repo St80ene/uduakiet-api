@@ -19,11 +19,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { ApiResponse } from '../../common/utils/response.utils';
 import { Category } from './entities/category.entity';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../common/enum/user_role.enum';
 
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
+  @Roles(UserRole.CASHIER, UserRole.ADMIN, UserRole.MANAGER)
   @Get()
   findAll(
     @CurrentUser() user: AuthenticatedUser,
@@ -34,9 +37,11 @@ export class CategoriesController {
       meta: PaginationMeta;
     }>
   > {
+    console.log('constroller user => ', user);
     return this.categoriesService.findAll(user.businessId, paginationQuery);
   }
 
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @Get(':id')
   findOne(
     @Param('id') id: string,

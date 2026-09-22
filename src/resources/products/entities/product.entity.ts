@@ -90,7 +90,7 @@ export class Product extends BaseEntity {
    * for the business.
    */
   @Column({ type: 'int', default: 5 })
-  default_reorder_point!: number;
+  default_reorder_point?: number;
 
   @IsEnum(UomType, {
     message: 'Invalid UOM type. Must be one of: UNIT, WEIGHT, VOLUME.',
