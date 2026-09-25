@@ -1167,7 +1167,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
       }),
       new TableIndex({
         name: 'IDX_stocks_store_reorder',
-        columnNames: ['store_id', 'quantity'],
+        columnNames: ['store_id', 'current_quantity'],
       }),
     ]);
 
@@ -1307,10 +1307,6 @@ export class InitialSchema1783699991545 implements MigrationInterface {
       new TableIndex({
         name: 'IDX_stock_movements_direction',
         columnNames: ['direction'],
-      }),
-      new TableIndex({
-        name: 'IDX_stock_movements_reference',
-        columnNames: ['reference_type', 'reference_id'],
       }),
     ]);
 
