@@ -39,18 +39,6 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const authUser = request.user;
 
-    this.logger.debug(
-      `Required roles for this route: [${requiredRoles.join(', ')}]`,
-    );
-
-    this.logger.debug(
-      `Authenticated user context: ${JSON.stringify(authUser)}`,
-    );
-
-    this.logger.debug(
-      `User request: ${JSON.stringify(request?.user ? request.user : 'No role information available')}`,
-    );
-
     if (!authUser) {
       throw new UnauthorizedException('Authentication context is missing');
     }
