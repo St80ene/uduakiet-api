@@ -821,6 +821,11 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             scale: 2,
           },
           {
+            name: 'default_reorder_point',
+            type: 'int',
+            default: 5,
+          },
+          {
             name: 'status',
             type: 'varchar',
             length: '20',
@@ -1090,16 +1095,10 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             length: '36',
           },
           {
-            name: 'quantity',
+            name: 'current_quantity',
             type: 'int',
             unsigned: true,
             default: 0,
-          },
-          {
-            name: 'reorder_level',
-            type: 'int',
-            unsigned: true,
-            default: 5,
           },
           {
             name: 'created_at',
@@ -1168,7 +1167,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
       }),
       new TableIndex({
         name: 'IDX_stocks_store_reorder',
-        columnNames: ['store_id', 'reorder_level'],
+        columnNames: ['store_id', 'quantity'],
       }),
     ]);
 
@@ -1214,9 +1213,14 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             length: '30',
           },
           {
+            name: 'reason',
+            type: 'varchar',
+            length: '255',
+          },
+          {
             name: 'direction',
             type: 'varchar',
-            length: '10',
+            length: '20',
           },
           {
             name: 'quantity',
@@ -1244,24 +1248,6 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'decimal',
             precision: 12,
             scale: 2,
-            isNullable: true,
-          },
-          {
-            name: 'reason',
-            type: 'varchar',
-            length: '500',
-            isNullable: true,
-          },
-          {
-            name: 'reference_type',
-            type: 'varchar',
-            length: '30',
-            isNullable: true,
-          },
-          {
-            name: 'reference_id',
-            type: 'varchar',
-            length: '36',
             isNullable: true,
           },
           {

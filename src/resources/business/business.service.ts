@@ -89,8 +89,8 @@ export class BusinessesService {
       }
 
       const business = this.businessRepository.create({
-        legal_name: createBusinessDto.legalName,
-        display_name: createBusinessDto.displayName,
+        legal_name: createBusinessDto.legal_name,
+        display_name: createBusinessDto.display_name,
 
         registration_number: createBusinessDto.registration_number,
 

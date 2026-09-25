@@ -21,8 +21,14 @@ export class ProductSourcesController {
   constructor(private readonly productSourcesService: ProductSourcesService) {}
 
   @Post()
-  create(@Body() createProductSourceDto: CreateProductSourceDto) {
-    return this.productSourcesService.create(createProductSourceDto);
+  create(
+    @CurrentUser() { businessId }: AuthenticatedUser,
+    @Body() createProductSourceDto: CreateProductSourceDto,
+  ) {
+    return this.productSourcesService.create(
+      businessId,
+      createProductSourceDto,
+    );
   }
 
   @Get()

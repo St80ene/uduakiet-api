@@ -82,6 +82,12 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         JSON.stringify({
           themeColor: '#06b6d4',
           enableNotifications: true,
+          enableMultiBranch: true,
+          lowStockThreshold: 10,
+          enableReceiptQR: true,
+          receiptFooterText:
+            'Thank you for shopping at UduaKiet! One Market, Unlimited Possibilities.',
+          defaultTaxRate: 7.5,
         }),
       ],
     );
@@ -384,6 +390,8 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         fractionDigits: 2,
       });
 
+      const default_reorder_point = faker.number.int({ min: 10, max: 10000 });
+
       const markup = faker.number.float({
         min: 1.15,
         max: 1.45,
@@ -409,6 +417,8 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         uom_display_name: product.uom_display_name,
 
         status: ProductStatus.ACTIVE,
+
+        default_reorder_point,
       };
     });
 
@@ -463,8 +473,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
      */
 
     const stockSeedData = productSeedData.map((product) => {
-      let quantity: number;
-      let reorderLevel: number;
+      let current_quantity: number;
 
       switch (product.uom_base_name) {
         case UomBaseName.G:
@@ -473,14 +482,9 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
            *
            * 1kg = 1000g.
            */
-          quantity = faker.number.int({
+          current_quantity = faker.number.int({
             min: 5000,
             max: 150000,
-          });
-
-          reorderLevel = faker.number.int({
-            min: 2000,
-            max: 10000,
           });
 
           break;
@@ -491,28 +495,18 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
            *
            * 1L = 1000ml.
            */
-          quantity = faker.number.int({
+          current_quantity = faker.number.int({
             min: 5000,
             max: 150000,
-          });
-
-          reorderLevel = faker.number.int({
-            min: 2000,
-            max: 10000,
           });
 
           break;
 
         case UomBaseName.PCS:
         default:
-          quantity = faker.number.int({
+          current_quantity = faker.number.int({
             min: 5,
             max: 150,
-          });
-
-          reorderLevel = faker.number.int({
-            min: 5,
-            max: 30,
           });
 
           break;
@@ -523,8 +517,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         business_id: businessId,
         store_id: mainStoreId,
         product_id: product.id,
-        quantity,
-        reorder_level: reorderLevel,
+        current_quantity,
       };
     });
 
@@ -536,18 +529,16 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
             business_id,
             store_id,
             product_id,
-            quantity,
-            reorder_level
+            current_quantity
           )
-          VALUES (?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?)
         `,
         [
           stock.id,
           stock.business_id,
           stock.store_id,
           stock.product_id,
-          stock.quantity,
-          stock.reorder_level,
+          stock.current_quantity,
         ],
       );
     }
@@ -745,17 +736,14 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         type: StockMovementType.RECEIPT,
         direction: StockMovementDirection.IN,
 
-        quantity: stock.quantity,
+        quantity: stock.current_quantity,
         quantity_before: 0,
-        quantity_after: stock.quantity,
+        quantity_after: stock.current_quantity,
 
         unit_cost_price: product.cost_price,
         unit_selling_price: product.selling_price,
 
         reason: 'Initial inventory setup',
-
-        reference_type: null,
-        reference_id: null,
       };
     });
 
@@ -775,11 +763,9 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
             unit_cost_price,
             unit_selling_price,
             reason,
-            reference_type,
-            reference_id,
             created_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `,
         [
           movement.id,
@@ -794,8 +780,6 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
           movement.unit_cost_price,
           movement.unit_selling_price,
           movement.reason,
-          movement.reference_type,
-          movement.reference_id,
         ],
       );
     }
@@ -900,8 +884,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
           quantity: 0,
         },
         new_value: {
-          quantity: stock.quantity,
-          reorder_level: stock.reorder_level,
+          quantity: stock.current_quantity,
           product_id: stock.product_id,
           store_id: stock.store_id,
         },

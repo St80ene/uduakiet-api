@@ -54,6 +54,18 @@ export class CreateProductDto {
   @Type(() => Number)
   cost_price!: number;
 
+  @IsNumber(
+    { maxDecimalPlaces: 0 },
+    {
+      message: 'Default reorder point must be a valid integer (whole number).',
+    },
+  )
+  @Min(0, {
+    message: 'Default reorder point cannot be negative.',
+  })
+  @Type(() => Number)
+  default_reorder_point!: number;
+
   @IsEnum(UomType, {
     message: 'uom_type must be one of: UNIT, WEIGHT, VOLUME.',
   })

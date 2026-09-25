@@ -5,6 +5,19 @@ import { StocksService } from '../stocks/stock.service';
 import { DashboardSection } from './interfaces/initial_interface';
 import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
+/**
+ * This Service should be able to answer quotation that
+ * pertain to decision making, using historical data required of a domain and the system.
+ * It should tell a top executive,why we have certain data,
+ * what we currently have, how we got here,
+ * what is the context both past and present,
+ * what information does this context offer,
+ * what does it affect,
+ * what opportunities do we have,
+ * and how can we use this to come to a decision,
+ * what decision would that be, what results are we looking,
+ * how can we act and it and have results.
+ */
 @Injectable()
 export class DashboardService {
   constructor(

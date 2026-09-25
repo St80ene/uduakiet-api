@@ -15,7 +15,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-@Controller('companies')
+@Controller('businesses')
 export class BusinessController {
   constructor(private readonly businessesService: BusinessesService) {}
 

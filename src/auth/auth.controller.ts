@@ -1,12 +1,13 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { RefreshTokenDto } from './dto/refresh_token.dto';
 import { ChangePasswordDto } from './dto/password.dto';
 import { ApiResponse } from '../common/utils/response.utils';
 import { User } from '../resources/users/entities/user.entity';
+import { JwtRefreshGuard } from './guards/jwt_refresh.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -28,9 +29,16 @@ export class AuthController {
     return this.authService.logout(userId);
   }
 
+  @Public()
+  @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto.refreshToken);
+  refresh(@Req() req: Request) {
+    // Passport attaches the strategy output to req.user
+    const { userId, refreshToken } = req.user as {
+      userId: number;
+      refreshToken: string;
+    };
+    return this.authService.refresh(userId.toString(), refreshToken);
   }
 
   @Post('change-password')

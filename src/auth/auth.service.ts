@@ -25,6 +25,7 @@ import { UserAuth } from './entities/user_auth.entity';
 import { AuditLogsService } from '../resources/audit_logs/audit_logs.service';
 import { AuditLogAction, AuditLogEntity } from '../common/enum/audit_log.enum';
 import { ApiResponse, successResponse } from '../common/utils/response.utils';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -39,6 +40,8 @@ export class AuthService {
     private readonly auditLogService: AuditLogsService,
 
     private readonly jwtService: JwtService,
+
+    private readonly configService: ConfigService,
   ) {}
 
   async login({ email, password }: LoginDto) {
@@ -58,15 +61,17 @@ export class AuthService {
       },
       {
         businessId: user.business_id,
-        storeId: user.store_id,
+        storeId: user.store_id ?? undefined,
       },
     );
 
-    return {
+    const response = {
       user,
       accessToken,
       refreshToken,
     };
+
+    return response;
   }
 
   async logout(userId: string) {
@@ -229,53 +234,6 @@ export class AuthService {
     return successResponse('Password changed successfully');
   }
 
-  async refresh(refreshToken: string) {
-    let payload: { sub: string };
-
-    try {
-      payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
-    } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    const auth = await this.userAuthRepository.findOne({
-      where: {
-        user_id: payload.sub,
-      },
-      select: {
-        user_id: true,
-        refresh_token: true,
-      },
-    });
-
-    if (!auth?.refresh_token) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const validRefreshToken = await bcrypt.compare(
-      refreshToken,
-      auth.refresh_token,
-    );
-
-    if (!validRefreshToken) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const user = await this.userRepository.findOne({
-      where: {
-        id: payload.sub,
-      },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('User is not active');
-    }
-
-    return this.generateTokens(user);
-  }
-
   async me(userId: string): Promise<ApiResponse<User>> {
     const user = await this.userRepository.findOne({
       where: {
@@ -309,6 +267,8 @@ export class AuthService {
       },
       relations: {
         role: true,
+        business: false,
+        store: false,
       },
     });
 
@@ -370,28 +330,84 @@ export class AuthService {
     return user;
   }
 
-  private async generateTokens(user: User) {
-    const payload = {
-      sub: user.id,
+  async refresh(userId: string, refreshToken: string) {
+    const auth = await this.userAuthRepository.findOne({
+      where: {
+        user_id: userId,
+      },
+      select: {
+        user_id: true,
+        refresh_token: true,
+      },
+    });
+
+    if (!auth?.refresh_token) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const valid_refreshToken = await bcrypt.compare(
+      refreshToken,
+      auth.refresh_token,
+    );
+
+    if (!valid_refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: {
+        id: userId,
+      },
+      relations: {
+        role: true,
+        business: false,
+        store: false,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User is not active');
+    }
+
+    const tokens = await this.generateTokens(user);
+    const response = {
+      user,
+      ...tokens,
     };
 
-    const accessToken = await this.jwtService.signAsync(payload, {
+    return response;
+  }
+
+  private async generateTokens(user: User) {
+    const JWT_ACCESS_SECRET =
+      this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+    const JWT_REFRESH_SECRET =
+      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+
+    // 1. Keep access token payload clean
+    const accessPayload = { sub: user.id, type: 'access' };
+
+    // 2. Add an identifier or type to the refresh payload
+    const refreshPayload = { sub: user.id, type: 'refresh' };
+
+    const accessToken = await this.jwtService.signAsync(accessPayload, {
+      secret: JWT_ACCESS_SECRET,
       expiresIn: '15m',
     });
 
-    const refreshToken = await this.jwtService.signAsync(payload, {
+    const refreshToken = await this.jwtService.signAsync(refreshPayload, {
+      secret: JWT_REFRESH_SECRET,
       expiresIn: '7d',
     });
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
-    await this.userAuthRepository.update(
+    await this.userAuthRepository.upsert(
       {
         user_id: user.id,
-      },
-      {
         refresh_token: refreshTokenHash,
       },
+      ['user_id'],
     );
 
     return {

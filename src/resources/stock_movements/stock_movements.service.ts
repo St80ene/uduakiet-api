@@ -37,7 +37,8 @@ export class StockMovementsService {
     user: AuthenticatedUser,
     dto: CreateStockMovementDto,
   ): Promise<ApiResponse<StockMovement>> {
-    if (dto.quantity <= 0) {
+    const { quantity, direction } = dto;
+    if (quantity <= 0) {
       throw new BadRequestException(
         'Movement quantity must be greater than zero.',
       );
@@ -127,8 +128,7 @@ export class StockMovementsService {
           product_id: product.id,
           business_id: businessId,
           store_id: store.id,
-          quantity: 0,
-          reorder_level: 5,
+          current_quantity: 0,
         });
 
         await queryRunner.manager.save(Stock, stock);
@@ -151,20 +151,20 @@ export class StockMovementsService {
        * ------------------------------------------------------------
        */
 
-      const quantityBefore = stock.quantity;
+      const quantity_before = quantity;
 
-      let quantityAfter: number;
+      let quantity_after: number;
 
-      if (dto.direction === StockMovementDirection.IN) {
-        quantityAfter = quantityBefore + dto.quantity;
+      if (direction === StockMovementDirection.IN) {
+        quantity_after = quantity_before + quantity;
       } else {
-        if (quantityBefore < dto.quantity) {
+        if (quantity_before < quantity) {
           throw new BadRequestException(
-            `Insufficient stock. Available: ${quantityBefore}, requested: ${dto.quantity}.`,
+            `Insufficient stock. Available: ${quantity_before}, requested: ${dto.quantity}.`,
           );
         }
 
-        quantityAfter = quantityBefore - dto.quantity;
+        quantity_after = quantity_before - quantity;
       }
 
       /**
@@ -173,7 +173,7 @@ export class StockMovementsService {
        * ------------------------------------------------------------
        */
 
-      stock.quantity = quantityAfter;
+      stock.current_quantity = quantity_after;
 
       await queryRunner.manager.save(Stock, stock);
 
@@ -190,13 +190,10 @@ export class StockMovementsService {
         type: dto.type,
         direction: dto.direction,
         quantity: dto.quantity,
-        quantity_before: quantityBefore,
-        quantity_after: quantityAfter,
+        quantity_before,
+        quantity_after,
         unit_cost_price: dto.unit_cost_price ?? product.cost_price,
         unit_selling_price: dto.unit_selling_price ?? product.selling_price,
-        reason: dto.reason ?? null,
-        reference_type: dto.reference_type ?? null,
-        reference_id: dto.reference_id ?? null,
       });
 
       const savedMovement = await queryRunner.manager.save(
@@ -315,7 +312,7 @@ export class StockMovementsService {
           await queryRunner.manager.save(Stock, stock);
         }
 
-        const quantityBefore = stock.quantity;
+        const quantityBefore = stock.current_quantity;
 
         let quantityAfter: number;
 
@@ -331,7 +328,7 @@ export class StockMovementsService {
           quantityAfter = quantityBefore - dto.quantity;
         }
 
-        stock.quantity = quantityAfter;
+        stock.current_quantity = quantityAfter;
 
         await queryRunner.manager.save(Stock, stock);
 
@@ -346,9 +343,6 @@ export class StockMovementsService {
           quantity_after: quantityAfter,
           unit_cost_price: dto.unit_cost_price ?? product.cost_price,
           unit_selling_price: dto.unit_selling_price ?? product.selling_price,
-          reason: dto.reason ?? null,
-          reference_type: dto.reference_type ?? null,
-          reference_id: dto.reference_id ?? null,
         });
 
         const savedMovement = await queryRunner.manager.save(

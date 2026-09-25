@@ -56,8 +56,9 @@ export class User extends BaseEntity {
   @Column({
     type: 'varchar',
     length: 36,
+    nullable: true,
   })
-  store_id!: string;
+  store_id?: string;
 
   @CreateDateColumn({
     type: 'datetime',
@@ -67,21 +68,18 @@ export class User extends BaseEntity {
 
   @ManyToOne(() => Role, (role) => role.users, {
     onDelete: 'CASCADE',
-    eager: true,
   })
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
   @ManyToOne(() => Business, (business) => business.users, {
     onDelete: 'CASCADE',
-    eager: true,
   })
   @JoinColumn({ name: 'business_id' })
   business!: Business;
 
   @ManyToOne(() => Store, (store) => store.users, {
     onDelete: 'CASCADE',
-    eager: true,
   })
   @JoinColumn({ name: 'store_id' })
   store!: Store;

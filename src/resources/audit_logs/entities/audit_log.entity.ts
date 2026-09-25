@@ -14,6 +14,11 @@ import {
 import { Business } from '../../business/entities/business.entity';
 import { Store } from '../../stores/entities/store.entity';
 
+export interface AuditMetaData {
+  reason: string;
+  [key: string]: unknown;
+}
+
 @Entity('audit_logs')
 export class AuditLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -44,7 +49,7 @@ export class AuditLog extends BaseEntity {
   newValue?: Record<string, any> | null;
 
   @Column({ name: 'metadata', type: 'json', nullable: true })
-  metadata?: Record<string, any> | null;
+  metadata?: AuditMetaData | null;
 
   @Column({ type: 'char', length: 36, nullable: false })
   business_id!: string;

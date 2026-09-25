@@ -23,12 +23,12 @@ export class CreateBusinessDto {
   @IsString()
   @NormalizeString()
   @MaxLength(255)
-  legalName!: string;
+  legal_name!: string;
 
   @IsString()
   @NormalizeString()
   @MaxLength(255)
-  displayName!: string;
+  display_name!: string;
 
   @IsOptional()
   @IsString()

@@ -1,11 +1,11 @@
 import {
   Entity,
   Column,
-  PrimaryColumn,
   CreateDateColumn,
   JoinColumn,
   ManyToOne,
   OneToOne,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { Product } from '../../products/entities/product.entity';
@@ -13,7 +13,7 @@ import { Business } from '../../business/entities/business.entity';
 
 @Entity({ name: 'product_sources' })
 export class ProductSource {
-  @PrimaryColumn({ type: 'varchar', length: 36 })
+  @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @Column({ type: 'varchar', length: 36, nullable: true })

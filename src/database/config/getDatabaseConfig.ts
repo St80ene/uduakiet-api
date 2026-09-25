@@ -1,7 +1,7 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-type SupportedDatabase = 'better-sqlite3' | 'mysql' | 'postgres';
+type SupportedDatabase = 'in-memory' | 'mysql' | 'postgres';
 
 const toBoolean = (
   value: string | undefined,
@@ -21,12 +21,9 @@ const toNumber = (value: string | undefined, defaultValue: number): number => {
 export const getDatabaseConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => {
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const nodeEnv = configService.get<string>('NODE_ENV');
 
-  const dbType = configService.get<SupportedDatabase>(
-    'DB_TYPE',
-    'better-sqlite3',
-  );
+  const dbType = configService.get<SupportedDatabase>('DB_TYPE', 'in-memory');
 
   const isDevelopment = nodeEnv === 'development';
   const isProduction = nodeEnv === 'production';
@@ -49,7 +46,7 @@ export const getDatabaseConfig = (
   /**
    * SQLite
    */
-  if (dbType === 'better-sqlite3' && useInMemoryDb && !isProduction) {
+  if (dbType === 'in-memory' && useInMemoryDb && !isProduction) {
     return {
       ...baseOrmConfig,
 
@@ -66,9 +63,9 @@ export const getDatabaseConfig = (
   /**
    * Never allow SQLite in production.
    */
-  if (isProduction && dbType === 'better-sqlite3') {
+  if (isProduction && dbType === 'in-memory') {
     throw new Error(
-      'Production cannot use better-sqlite3. Set DB_TYPE=mysql or DB_TYPE=postgres.',
+      'Production cannot use in-memory. Set DB_TYPE=mysql or DB_TYPE=postgres or any other installed DB.',
     );
   }
 

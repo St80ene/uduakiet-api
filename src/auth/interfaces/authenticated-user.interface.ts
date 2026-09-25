@@ -5,6 +5,6 @@ export interface AuthenticatedUser {
   email: string;
   roleId: string;
   businessId: string;
-  storeId: string;
+  storeId?: string;
   role: Role;
 }
