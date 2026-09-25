@@ -14,6 +14,7 @@ import { Permission } from './entities/permission.entity';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtRefreshStrategy } from './strategies/refresh_jwt.strategy';
 
 @Module({
   imports: [
@@ -25,19 +26,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
       RolePermissions,
       Permission,
     ]),
-    JwtModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        signOptions: { expiresIn: '1h' },
-      }),
-    }),
     AuditLogsModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
+    ConfigService,
     JwtStrategy,
+    JwtRefreshStrategy,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
