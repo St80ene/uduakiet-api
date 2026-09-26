@@ -11,6 +11,7 @@ export class UserAuth {
     length: 255,
     select: false,
     nullable: true,
+    default: null,
   })
   @Exclude()
   password?: string | null;
