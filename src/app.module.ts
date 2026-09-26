@@ -23,10 +23,14 @@ import { CategoriesModule } from './resources/categories/categories.module';
 import { StoresModule } from './resources/stores/stores.module';
 import { CloudinaryModule } from './common/utils/helpers/cloudinary/cloudinary.module';
 import { StockMovementsModule } from './resources/stock_movements/stock_movements.module';
+
+const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: filePath,
     }),
     ThrottlerModule.forRoot([
       {
