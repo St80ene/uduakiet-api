@@ -589,6 +589,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             name: 'password',
             type: 'varchar',
             length: '255',
+            isNullable: true,
           },
           {
             name: 'refresh_token',
