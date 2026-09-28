@@ -255,7 +255,9 @@ export class ProductsService {
           store: true,
         },
         category: true,
-        source: true,
+        source: {
+          supplier: true,
+        },
       },
     });
 

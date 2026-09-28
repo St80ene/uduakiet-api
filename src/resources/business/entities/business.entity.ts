@@ -94,7 +94,7 @@ export class Business extends BaseEntity {
   @Column({
     name: 'phone_number',
     type: 'varchar',
-    length: 30,
+    length: 20,
     nullable: true,
   })
   phone_number?: string | null;

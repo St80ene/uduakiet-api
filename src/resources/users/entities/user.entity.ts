@@ -32,7 +32,7 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', length: 100 })
   last_name!: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   phone_number?: string;
 
   @Column({ type: 'json', nullable: true })

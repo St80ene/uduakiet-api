@@ -65,7 +65,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           {
             name: 'phone_number',
             type: 'varchar',
-            length: '30',
+            length: '20',
             isNullable: true,
           },
           {
@@ -230,7 +230,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           {
             name: 'phone_number',
             type: 'varchar',
-            length: '50',
+            length: '20',
             isNullable: true,
           },
           {
@@ -487,7 +487,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           {
             name: 'phone_number',
             type: 'varchar',
-            length: '100',
+            length: '20',
             isNullable: true,
           },
           {
@@ -912,6 +912,12 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             name: 'name',
             type: 'varchar',
             length: '255',
+          },
+          {
+            name: 'phone_number',
+            type: 'varchar',
+            length: '20',
+            isNullable: true,
           },
           {
             name: 'email',
