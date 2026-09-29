@@ -1,10 +1,17 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
+import * as path from 'path';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
 
+console.log(`Current envFile: ${envFile}`);
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+console.log(`Current directory: ${process.cwd()}`);
 const envSchema = z.object({
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
+    .default('development'),
   DB_HOST: z.string().trim().min(1, 'DB_HOST is required'),
 
   DB_PORT: z

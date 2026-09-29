@@ -28,10 +28,6 @@ export const getDatabaseConfig = (
   const isDevelopment = nodeEnv === 'development';
   const isProduction = nodeEnv === 'production';
 
-  const useInMemoryDb = toBoolean(
-    configService.get<string>('USE_IN_MEMORY_DB'),
-  );
-
   /**
    * Shared TypeORM options.
    *
@@ -46,7 +42,7 @@ export const getDatabaseConfig = (
   /**
    * SQLite
    */
-  if (dbType === 'in-memory' && useInMemoryDb && !isProduction) {
+  if (dbType === 'in-memory' && !isProduction) {
     return {
       ...baseOrmConfig,
 
@@ -101,6 +97,7 @@ export const getDatabaseConfig = (
     60000,
   );
 
+  console.log('dbtype:', dbType);
   /**
    * MySQL
    */
@@ -161,6 +158,6 @@ export const getDatabaseConfig = (
   }
 
   throw new Error(
-    `Unsupported DB_TYPE "${dbType}". Supported values: better-sqlite3, mysql, postgres.`,
+    `Unsupported DB_TYPE "${dbType}". Supported values: in-memory, mysql, postgres.`,
   );
 };

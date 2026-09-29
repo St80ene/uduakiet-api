@@ -52,7 +52,7 @@ export class Store extends BaseEntity {
   @Column({ type: 'varchar', length: 100, nullable: true })
   country?: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   phone_number?: string;
 
   @OneToMany(() => AuditLog, (audit_log) => audit_log.store)

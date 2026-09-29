@@ -248,17 +248,19 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
     ];
 
     for (const supplier of supplierSeedData) {
+      const phone_number = faker.phone.number({ style: 'international' });
       await queryRunner.query(
         `
           INSERT INTO suppliers (
             id,
             name,
+            phone_number,
             email,
             business_id
           )
-          VALUES (?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?)
         `,
-        [supplier.id, supplier.name, supplier.email, businessId],
+        [supplier.id, supplier.name, phone_number, supplier.email, businessId],
       );
     }
 
