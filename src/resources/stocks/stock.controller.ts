@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
@@ -6,11 +14,20 @@ import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user
 import { StocksService } from './stock.service';
 
 import { StockPaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { CreateStockDto } from './dto/create-stock.dto';
+import { UpdateStockDto } from './dto/update-stock.dto';
 
 @Controller('stocks')
 export class StocksController {
   constructor(private readonly stockService: StocksService) {}
 
+  @Post()
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: CreateStockDto,
+  ) {
+    return this.stockService.create(payload, user);
+  }
   /**
    * Get paginated current stock balances.
    *
@@ -45,5 +62,13 @@ export class StocksController {
   @Get('metrics')
   getWarehouseMetrics(@CurrentUser() user: AuthenticatedUser) {
     return this.stockService.getWarehouseMetrics(user);
+  }
+
+  @Patch('adjustment')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: UpdateStockDto,
+  ) {
+    return this.stockService.update(payload, user);
   }
 }

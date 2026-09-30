@@ -155,13 +155,22 @@ export class StocksService {
     try {
       // Validate that the stock record does exist for the given product, business, and store.
 
-      const stock = await queryRunner.manager
+      const driverType = queryRunner.dataSource.driver.options.type;
+      const supportsLocks =
+        driverType !== 'mysql' && driverType !== 'better-sqlite3';
+
+      let queryBuilder = queryRunner.manager
         .createQueryBuilder(Stock, 'stock')
-        .setLock('pessimistic_write')
         .where('stock.product_id = :productId', { productId: product_id })
         .andWhere('stock.business_id = :businessId', { businessId: businessId })
-        .andWhere('stock.store_id = :storeId', { storeId: storeId })
-        .getOne();
+        .andWhere('stock.store_id = :storeId', { storeId: storeId });
+
+      // Only apply pessimistic write lock if the database supports it (MySQL)
+      if (supportsLocks) {
+        queryBuilder = queryBuilder.setLock('pessimistic_write');
+      }
+
+      const stock = await queryBuilder.getOne();
 
       if (!stock)
         throw new NotFoundException(
