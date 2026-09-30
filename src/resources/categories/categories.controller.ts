@@ -5,7 +5,7 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
+  // Delete,
   Query,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
@@ -71,11 +71,11 @@ export class CategoriesController {
     );
   }
 
-  @Delete(':id')
-  remove(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<ApiResponse<null>> {
-    return this.categoriesService.remove(id, user.businessId);
-  }
+  // @Delete(':id')
+  // remove(
+  //   @Param('id') id: string,
+  //   @CurrentUser() user: AuthenticatedUser,
+  // ): Promise<ApiResponse<null>> {
+  //   return this.categoriesService.remove(id, user.businessId);
+  // }
 }

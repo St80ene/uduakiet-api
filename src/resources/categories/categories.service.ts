@@ -190,14 +190,14 @@ export class CategoriesService {
     return successResponse('Category updated successfully', savedCategory);
   }
 
-  async remove(id: string, businessId: string): Promise<ApiResponse<null>> {
-    const category = await this.findOne(id, businessId);
+  // async remove(id: string, businessId: string): Promise<ApiResponse<null>> {
+  //   const category = await this.findOne(id, businessId);
 
-    if (!category?.data) {
-      throw new NotFoundException('Category not found');
-    }
+  //   if (!category?.data) {
+  //     throw new NotFoundException('Category not found');
+  //   }
 
-    await this.categoryRepository.softDelete(id);
-    return successResponse('Category deleted successfully', null);
-  }
+  //   await this.categoryRepository.softDelete(id);
+  //   return successResponse('Category deleted successfully', null);
+  // }
 }
