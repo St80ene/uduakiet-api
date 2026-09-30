@@ -16,7 +16,10 @@ import {
 } from '../purchase_orders/entities/purchase_order.entity';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierQueryDto } from './dto/supplier-query.dto';
-import { BasePaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import {
+  BasePaginationQueryDto,
+  PaginationMeta,
+} from '../../common/dto/pagination-query.dto';
 import { DashboardCard } from '../dashboard/interfaces/initial_interface';
 import {
   ApiResponse,
@@ -42,10 +45,12 @@ export class SuppliersService {
 
   async create(
     createSupplierDto: CreateSupplierDto,
+    businessId: string,
   ): Promise<ApiResponse<Supplier>> {
     const existingSupplier = await this.supplierRepository.findOne({
       where: {
         name: createSupplierDto.name,
+        business_id: businessId,
       },
     });
 
@@ -53,14 +58,22 @@ export class SuppliersService {
       throw new ConflictException('Supplier already exists');
     }
 
-    const supplier = this.supplierRepository.create(createSupplierDto);
+    const supplier = this.supplierRepository.create({
+      ...createSupplierDto,
+      business_id: businessId,
+    });
 
     await this.supplierRepository.save(supplier);
 
     return successResponse('Supplier created successfully', supplier);
   }
 
-  async findAll(query: SupplierQueryDto): Promise<ApiResponse<any>> {
+  async findAll(query: SupplierQueryDto): Promise<
+    ApiResponse<{
+      suppliers: Supplier[];
+      meta: PaginationMeta;
+    }>
+  > {
     const { search, sortBy = 'created_at', order = 'DESC' } = query;
 
     const { page, limit, skip } = getPaginationOptions(query);
@@ -79,11 +92,14 @@ export class SuppliersService {
 
     return successResponse('Suppliers retrieved successfully', {
       suppliers,
-      pagination: {
-        page,
-        limit,
-        total,
+      meta: {
+        totalItems: total,
+        itemCount: suppliers.length,
+        itemsPerPage: limit,
         totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
       },
     });
   }
