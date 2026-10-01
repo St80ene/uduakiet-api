@@ -123,7 +123,6 @@ export class CategoriesService {
       categories,
       meta: {
         totalItems,
-        itemCount: categories.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,

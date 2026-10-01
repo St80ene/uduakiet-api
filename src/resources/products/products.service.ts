@@ -224,7 +224,6 @@ export class ProductsService {
       products,
       meta: {
         totalItems,
-        itemCount: products.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,

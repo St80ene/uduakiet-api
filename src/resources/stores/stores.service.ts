@@ -143,7 +143,6 @@ export class StoresService {
       stores,
       meta: {
         totalItems,
-        itemCount: stores.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,

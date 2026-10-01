@@ -18,6 +18,7 @@ import { CloudinaryImage } from '../../../common/utils/helpers/cloudinary/cloudi
 import { Stock } from '../../stocks/entities/stock.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { ProductSource } from '../../product_sources/entities/product_source.entity';
+import { StockMovement } from '../../stock_movements/entities/stock_movement.entity';
 
 export enum BusinessStatus {
   ACTIVE = 'ACTIVE',
@@ -234,6 +235,9 @@ export class Business extends BaseEntity {
 
   @OneToMany(() => ProductSource, (product_source) => product_source.business)
   product_sources!: ProductSource[]; // Table to link suppliers and products
+
+  @OneToMany(() => StockMovement, (movement) => movement.business)
+  movements!: StockMovement[]; // Table to link suppliers and products
 
   // ==========================================================
   // TIMESTAMPS

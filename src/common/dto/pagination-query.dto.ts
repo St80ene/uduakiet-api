@@ -140,8 +140,6 @@ export class AuditLogPaginationQueryDto extends BasePaginationQueryDto {
 
 export interface PaginationMeta {
   totalItems: number;
-  itemCount: number;
-  itemsPerPage: number;
   totalPages: number;
   currentPage: number;
   hasNextPage: boolean;
@@ -232,6 +230,28 @@ export class ProductSourcePaginationQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   @IsIn(Object.keys(PRODUCT_SOURCE_SORT_FIELDS))
   sortBy?: ProductSourceSortField = 'created_at';
+
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
+  order?: 'ASC' | 'DESC' = 'DESC';
+
+  [key: string]: unknown;
+}
+
+export const STOCK_MOVEMENT_SORT_FIELDS: Record<string, string> = {
+  created_at: 'stock_movements.created_at',
+};
+
+export const STOCK_MOVEMENT_SORT_FIELD_NAMES = Object.keys(
+  STOCK_MOVEMENT_SORT_FIELDS,
+);
+export type StockMovementSortField =
+  (typeof STOCK_MOVEMENT_SORT_FIELD_NAMES)[number];
+
+export class StockMovementPaginationQueryDto extends BasePaginationQueryDto {
+  @IsOptional()
+  @IsIn(Object.keys(STOCK_MOVEMENT_SORT_FIELDS))
+  sortBy?: StockMovementSortField = 'created_at';
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])

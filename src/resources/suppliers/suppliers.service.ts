@@ -94,7 +94,6 @@ export class SuppliersService {
       suppliers,
       meta: {
         totalItems: total,
-        itemCount: suppliers.length,
         itemsPerPage: limit,
         totalPages: Math.ceil(total / limit),
         currentPage: page,

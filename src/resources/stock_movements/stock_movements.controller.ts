@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { StockMovementsService } from './stock_movements.service';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { CreateStockMovementDto } from './dto/create-stock_movement.dto';
+import { StockMovementPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 @Controller('stock-movements')
 export class StockMovementsController {
@@ -16,8 +17,11 @@ export class StockMovementsController {
    * GET /stock-movements
    */
   @Get()
-  findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.stockMovementsService.findAll(user);
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: StockMovementPaginationQueryDto,
+  ) {
+    return this.stockMovementsService.findAll(user, query);
   }
 
   /**
