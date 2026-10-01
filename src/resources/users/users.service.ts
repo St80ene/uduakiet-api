@@ -25,6 +25,7 @@ import {
   CloudinaryService,
 } from '../../common/utils/helpers/cloudinary/cloudinary.service';
 import {
+  PaginationMeta,
   USER_SORT_FIELDS,
   UserPaginationQueryDto,
 } from '../../common/dto/pagination-query.dto';
@@ -158,15 +159,7 @@ export class UsersService {
   ): Promise<
     ApiResponse<{
       users: User[];
-      meta: {
-        totalItems: number;
-        itemCount: number;
-        itemsPerPage: number;
-        totalPages: number;
-        currentPage: number;
-        hasNextPage: boolean;
-        hasPreviousPage: boolean;
-      };
+      meta: PaginationMeta;
     }>
   > {
     const {
@@ -217,7 +210,6 @@ export class UsersService {
       users,
       meta: {
         totalItems,
-        itemCount: users.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,

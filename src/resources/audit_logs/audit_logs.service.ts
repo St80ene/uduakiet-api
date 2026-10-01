@@ -93,7 +93,6 @@ export class AuditLogsService {
       auditLogs: data,
       meta: {
         totalItems: total,
-        itemCount: data.length,
         itemsPerPage: limit,
         totalPages: Math.ceil(total / limit),
         currentPage: page,
@@ -147,7 +146,6 @@ export class AuditLogsService {
       auditLogs: data,
       meta: {
         totalItems: total,
-        itemCount: data.length,
         itemsPerPage: limitNumber,
         totalPages: Math.ceil(total / limitNumber),
         currentPage: pageNumber,

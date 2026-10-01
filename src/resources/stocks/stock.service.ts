@@ -335,7 +335,6 @@ export class StocksService {
       stocks,
       meta: {
         totalItems,
-        itemCount: stocks.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,
@@ -358,6 +357,8 @@ export class StocksService {
       .createQueryBuilder('stock')
       .leftJoinAndSelect('stock.product', 'product')
       .leftJoinAndSelect('stock.store', 'store')
+      .leftJoinAndSelect('stock.movements', 'movements')
+      .leftJoinAndSelect('stock.business', 'business')
       .where('stock.id = :id', { id })
       .andWhere('stock.business_id = :businessId', {
         businessId: businessId,

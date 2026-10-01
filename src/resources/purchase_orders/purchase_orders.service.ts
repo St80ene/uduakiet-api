@@ -370,7 +370,6 @@ export class PurchaseOrdersService {
       data: orders,
       meta: {
         totalItems,
-        itemCount: orders.length,
         itemsPerPage: limit,
         totalPages,
         currentPage: page,

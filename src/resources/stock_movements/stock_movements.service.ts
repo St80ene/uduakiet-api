@@ -5,8 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-
+import { DataSource, Brackets, Repository } from 'typeorm';
 import {
   StockMovement,
   StockMovementDirection,
@@ -20,6 +19,12 @@ import { CreateStockMovementDto } from './dto/create-stock_movement.dto';
 import { Stock } from '../stocks/entities/stock.entity';
 import { Store } from '../stores/entities/store.entity';
 import { Product } from '../products/entities/product.entity';
+import {
+  PaginationMeta,
+  STOCK_MOVEMENT_SORT_FIELDS,
+  StockMovementPaginationQueryDto,
+} from '../../common/dto/pagination-query.dto';
+import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
 
 @Injectable()
 export class StockMovementsService {
@@ -376,24 +381,38 @@ export class StockMovementsService {
     }
   }
 
-  /**
-   * Retrieves all stock movements belonging to the
-   * authenticated user's business.
-   *
-   * Optionally restricted to the user's current store.
-   */
   async findAll(
     user: AuthenticatedUser,
-  ): Promise<ApiResponse<StockMovement[]>> {
+    query: StockMovementPaginationQueryDto,
+  ): Promise<
+    ApiResponse<{
+      stock_movements: StockMovement[];
+      meta: PaginationMeta;
+    }>
+  > {
     const { businessId, storeId } = user;
 
+    const {
+      page: pageNumber,
+      limit: limitNumber,
+      skip,
+    } = getPaginationOptions(query);
+
+    const { search, order = 'DESC', sortBy = 'created_at' } = query;
+
+    const sortColumn =
+      STOCK_MOVEMENT_SORT_FIELDS[sortBy] || 'stock_movements.created_at';
+
+    const sortOrder: 'ASC' | 'DESC' =
+      order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
     const queryBuilder = this.stockMovementRepository
-      .createQueryBuilder('movement')
-      .leftJoinAndSelect('movement.stock', 'stock')
+      .createQueryBuilder('stock_movements')
+      .leftJoinAndSelect('stock_movements.stock', 'stock')
+      .leftJoinAndSelect('stock_movements.created_by', 'createdBy')
       .leftJoinAndSelect('stock.product', 'product')
       .leftJoinAndSelect('stock.store', 'store')
-      .leftJoinAndSelect('movement.created_by', 'createdBy')
-      .where('movement.business_id = :businessId', {
+      .where('stock_movements.business_id = :businessId', {
         businessId,
       });
 
@@ -403,11 +422,81 @@ export class StockMovementsService {
       });
     }
 
-    const movements = await queryBuilder
-      .orderBy('movement.created_at', 'DESC')
-      .getMany();
+    if (search) {
+      const trimmedSearch = search.trim();
+      const isNumeric = !isNaN(Number(trimmedSearch)) && trimmedSearch !== '';
+      const numericValue = isNumeric ? Number(trimmedSearch) : null;
+      /**
+       * Retrieves all stock movements belonging to the
+       * authenticated user's business.
+       *
+       * Optionally restricted to the user's current store.
+       */
+      // Use Brackets to safely wrap search OR conditions so they don't break tenant isolation
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          // Text-based searches
+          qb.where('LOWER(stock_movements.type) LIKE LOWER(:search)', {
+            search: `%${trimmedSearch}%`,
+          })
+            .orWhere('LOWER(stock_movements.direction) LIKE LOWER(:search)', {
+              search: `%${trimmedSearch}%`,
+            })
+            .orWhere('LOWER(product.name) LIKE LOWER(:search)', {
+              search: `%${trimmedSearch}%`,
+            })
+            .orWhere('LOWER(store.name) LIKE LOWER(:search)', {
+              search: `%${trimmedSearch}%`,
+            })
+            .orWhere('LOWER(createdBy.email) LIKE LOWER(:search)', {
+              search: `%${trimmedSearch}%`,
+            })
+            .orWhere('LOWER(stock_movements.reason) LIKE LOWER(:search)', {
+              search: `%${trimmedSearch}%`,
+            });
 
-    return successResponse('Stock movements retrieved successfully', movements);
+          // If the user inputs a valid number, perform index-friendly exact numeric matches
+          // instead of expensive string casting/full-table scans.
+          if (isNumeric && numericValue !== null) {
+            qb.orWhere('stock_movements.quantity = :numericValue', {
+              numericValue,
+            })
+              .orWhere('stock_movements.quantity_before = :numericValue', {
+                numericValue,
+              })
+              .orWhere('stock_movements.quantity_after = :numericValue', {
+                numericValue,
+              })
+              .orWhere('stock_movements.unit_cost_price = :numericValue', {
+                numericValue,
+              })
+              .orWhere('stock_movements.unit_selling_price = :numericValue', {
+                numericValue,
+              });
+          }
+        }),
+      );
+    }
+
+    const [movements, totalItems] = await queryBuilder
+      .orderBy(sortColumn, sortOrder)
+      .skip(skip)
+      .take(limitNumber)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(totalItems / limitNumber);
+
+    return successResponse('Stock movements retrieved successfully', {
+      stock_movements: movements,
+      meta: {
+        totalItems,
+        itemsPerPage: limitNumber,
+        totalPages,
+        currentPage: pageNumber,
+        hasNextPage: pageNumber < totalPages,
+        hasPreviousPage: pageNumber > 1,
+      },
+    });
   }
 
   /**

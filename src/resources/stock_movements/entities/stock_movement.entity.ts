@@ -22,7 +22,9 @@ export enum StockMovementType {
   DAMAGE = 'DAMAGE',
   LOSS = 'LOSS',
   REVERSAL = 'REVERSAL',
-  PURCHASE_ORDER = 'PURCHASE_ORDER',
+  NEW_STOCK = 'NEW_STOCK',
+  ADDITIONAL_STOCK = 'ADDITIONAL_STOCK',
+  CLOSING_STOCK = 'CLOSING_STOCK',
 }
 
 export enum StockMovementDirection {

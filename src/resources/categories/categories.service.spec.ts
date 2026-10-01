@@ -346,7 +346,6 @@ describe('CategoriesService', () => {
           categories,
           meta: {
             totalItems: 1,
-            itemCount: 1,
             itemsPerPage: 10,
             totalPages: 1,
             currentPage: 1,
@@ -464,7 +463,6 @@ describe('CategoriesService', () => {
 
       expect(result?.data?.meta).toEqual({
         totalItems: 35,
-        itemCount: 10,
         itemsPerPage: 10,
         totalPages: 4,
         currentPage: 2,

@@ -138,7 +138,7 @@ export class ProductSourcesService {
     paginationQuery: ProductSourcePaginationQueryDto,
   ): Promise<
     ApiResponse<{
-      productSources: ProductSource[];
+      product_sources: ProductSource[];
       meta: PaginationMeta;
     }>
   > {
@@ -185,10 +185,9 @@ export class ProductSourcesService {
     const totalPages = Math.ceil(totalItems / limitNumber);
 
     return successResponse('Product sources retrieved successfully', {
-      productSources,
+      product_sources: productSources,
       meta: {
         totalItems,
-        itemCount: productSources.length,
         itemsPerPage: limitNumber,
         totalPages,
         currentPage: pageNumber,
