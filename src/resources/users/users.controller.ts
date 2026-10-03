@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 
@@ -28,16 +29,18 @@ import { User } from './entities/user.entity';
 import { ApiResponse } from '../../common/utils/response.utils';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { UserPaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { RolesGuard } from '../../auth/guards/roles.guard';
 
 @Controller('users')
+@UseGuards(RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
    * Create user
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('profile_image'))
   create(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -63,8 +66,8 @@ export class UsersController {
   /**
    * Get users
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   findAll(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Query() query: UserPaginationQueryDto,
@@ -75,6 +78,12 @@ export class UsersController {
   /**
    * Get one user
    */
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.CASHIER,
+  ])
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<ApiResponse<User>> {
     return this.usersService.findOne(id);
@@ -83,6 +92,12 @@ export class UsersController {
   /**
    * Update own profile
    */
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.CASHIER,
+  ])
   @Patch(':id')
   @UseInterceptors(FileInterceptor('profile_image'))
   update(
@@ -110,8 +125,8 @@ export class UsersController {
   /**
    * Change user role
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Patch(':id/role')
-  @Roles(UserRole.SUPER_ADMIN)
   changeRole(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -123,8 +138,8 @@ export class UsersController {
   /**
    * Deactivate user
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN)
   deactivate(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -135,8 +150,8 @@ export class UsersController {
   /**
    * Activate user
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Patch(':id/activate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   activate(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

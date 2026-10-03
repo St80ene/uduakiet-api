@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { StockMovementsService } from './stock_movements.service';
 
@@ -6,8 +14,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { CreateStockMovementDto } from './dto/create-stock_movement.dto';
 import { StockMovementPaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../common/enum/user_role.enum';
 
 @Controller('stock-movements')
+@UseGuards(RolesGuard)
 export class StockMovementsController {
   constructor(private readonly stockMovementsService: StockMovementsService) {}
 
@@ -16,6 +28,7 @@ export class StockMovementsController {
    *
    * GET /stock-movements
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Get()
   findAll(
     @CurrentUser() user: AuthenticatedUser,
@@ -29,6 +42,7 @@ export class StockMovementsController {
    *
    * GET /stock-movements/:id
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Get(':id')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.stockMovementsService.findOne(id, user);
@@ -39,6 +53,7 @@ export class StockMovementsController {
    *
    * GET /stock-movements/stock/:stockId
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Get('stock/:stockId')
   findByStock(
     @CurrentUser() user: AuthenticatedUser,
@@ -52,6 +67,7 @@ export class StockMovementsController {
    *
    * GET /stock-movements/product/:productId
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Get('product/:productId')
   findByProduct(
     @CurrentUser() user: AuthenticatedUser,
@@ -67,6 +83,7 @@ export class StockMovementsController {
    *
    * The service performs both operations in one database transaction.
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Post('movement')
   createMovement(
     @CurrentUser() user: AuthenticatedUser,
@@ -80,6 +97,7 @@ export class StockMovementsController {
    *
    * POST /stock-movements/movement/bulk
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Post('movement/bulk')
   bulkCreateMovements(
     @CurrentUser() user: AuthenticatedUser,

@@ -61,7 +61,7 @@ export class Product extends BaseEntity {
     type: 'json',
     default: () => "('[]')",
   })
-  images!: CloudinaryImage[];
+  images?: CloudinaryImage[];
 
   /**
    * Current/default product cost.

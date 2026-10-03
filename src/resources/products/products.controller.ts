@@ -12,6 +12,7 @@ import {
   UploadedFiles,
   HttpStatus,
   ParseFilePipeBuilder,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -26,11 +27,21 @@ import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user
 import { ApiResponse } from '../../common/utils/response.utils';
 import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { Product } from './entities/product.entity';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../common/enum/user_role.enum';
 
 @Controller('products')
+@UseGuards(RolesGuard)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.STOREMAN,
+  ])
   @Post()
   @UseInterceptors(FilesInterceptor('images', 5)) // ◄ Allow up to 5 images
   create(
@@ -50,6 +61,13 @@ export class ProductsController {
     return this.productsService.create(createProductDto, currentUser, files);
   }
 
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.STOREMAN,
+    UserRole.CASHIER,
+  ])
   @Get()
   findAll(
     @Query() paginationQuery: ProductPaginationQueryDto,
@@ -58,6 +76,13 @@ export class ProductsController {
     return this.productsService.findAll(paginationQuery, currentUser);
   }
 
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.STOREMAN,
+    UserRole.CASHIER,
+  ])
   @Get(':id')
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,6 +91,7 @@ export class ProductsController {
     return this.productsService.findOne(id, currentUser);
   }
 
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Get(':id/audit-logs')
   getProductAuditLogs(
     @Param('id', ParseUUIDPipe) productId: string,
@@ -84,11 +110,18 @@ export class ProductsController {
     );
   }
 
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.STOREMAN,
+  ])
   @Get('inventory-health')
   getInventoryHealth(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.productsService.getInventoryHealth(currentUser);
   }
 
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Patch(':id')
   @UseInterceptors(FilesInterceptor('images', 5))
   update(
@@ -105,6 +138,7 @@ export class ProductsController {
     );
   }
 
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
   @Delete(':id')
   remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -120,6 +154,13 @@ export class ProductsController {
    *
    * Returns the stock balance for the authenticated user's store.
    */
+  @Roles([
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.MANAGER,
+    UserRole.STOREMAN,
+    UserRole.CASHIER,
+  ])
   @Get('stock/:productId')
   findCurrentStock(
     @CurrentUser() user: AuthenticatedUser,
@@ -135,6 +176,7 @@ export class ProductsController {
    *
    * Returns the immutable inventory ledger for the product.
    */
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
   @Get('stock/:productId/history')
   findProductStockHistory(
     @CurrentUser() user: AuthenticatedUser,

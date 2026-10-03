@@ -1492,6 +1492,12 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             precision: 10,
             scale: 2,
           },
+          {
+            name: 'total_cost',
+            type: 'decimal',
+            precision: 10,
+            scale: 2,
+          },
         ],
       }),
       true,

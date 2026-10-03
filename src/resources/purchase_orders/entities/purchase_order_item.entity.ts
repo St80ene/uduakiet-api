@@ -24,6 +24,9 @@ export class PurchaseOrderItem {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   estimated_unit_cost!: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  total_cost!: number;
+
   @ManyToOne(() => PurchaseOrder, (po) => po.items, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'purchase_order_id' })
   purchase_order!: PurchaseOrder;
