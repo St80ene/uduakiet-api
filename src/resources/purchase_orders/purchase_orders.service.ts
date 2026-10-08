@@ -23,8 +23,6 @@ import {
   PurchaseOrderSortFields,
 } from '../../common/dto/pagination-query.dto';
 import { Product } from '../products/entities/product.entity';
-import { ProductSource } from '../product_sources/entities/product_source.entity';
-import { SuppliersService } from '../suppliers/suppliers.service';
 import { DashboardCard } from '../dashboard/interfaces/initial_interface';
 import {
   ApiResponse,
@@ -42,14 +40,6 @@ export class PurchaseOrdersService {
     private readonly purchaseOrderRepository: Repository<PurchaseOrder>,
 
     private readonly dataSource: DataSource,
-
-    @InjectRepository(Product)
-    private readonly productRepository: Repository<Product>,
-
-    @InjectRepository(ProductSource)
-    private readonly productSourceRepository: Repository<ProductSource>,
-
-    private readonly supplierService: SuppliersService,
   ) {}
 
   // CREATE: Generate a new Purchase Order with nested items
@@ -317,13 +307,6 @@ export class PurchaseOrdersService {
       meta: PaginationMeta;
     }>
   > {
-    const SORTABLE_COLUMNS: Record<string, string> = {
-      created_at: 'purchase_order.created_at',
-      po_number: 'purchase_order.po_number',
-      status: 'purchase_order.status',
-      total_estimated_cost: 'purchase_order.total_estimated_cost',
-    };
-
     const {
       page = 1,
       limit = 10,
@@ -371,7 +354,7 @@ export class PurchaseOrdersService {
     }
 
     const orderByColumn =
-      SORTABLE_COLUMNS[sortColumn] ?? SORTABLE_COLUMNS.created_at;
+      PurchaseOrderSortFields[sortColumn] ?? PurchaseOrderSortFields.created_at;
     const orderDirection = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const countQuery = queryBuilder.clone();

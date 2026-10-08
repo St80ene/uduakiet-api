@@ -39,7 +39,7 @@ export class AuditLogsService {
 
   async findAll(query: AuditLogQueryDto): Promise<
     ApiResponse<{
-      auditLogs: AuditLog[];
+      audit_logs: AuditLog[];
       meta: PaginationMeta;
     }>
   > {
@@ -90,7 +90,7 @@ export class AuditLogsService {
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return successResponse('Audit Logs fetched successfully', {
-      auditLogs: data,
+      audit_logs: data,
       meta: {
         totalItems: total,
         itemsPerPage: limit,

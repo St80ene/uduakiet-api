@@ -62,7 +62,7 @@ export class CreateStockDto {
     message: 'Unit Cost price cannot be negative.',
   })
   @Type(() => Number)
-  unit_cost_price!: number;
+  unit_cost_price!: number; // this should be gotten from the purchase order items table.(column unit_cost_price) when the stock is created from a purchase order.
 
   @IsOptional()
   @NormalizeString()
