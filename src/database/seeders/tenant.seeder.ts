@@ -4,6 +4,7 @@ import { UserAuth } from '../../auth/entities/user_auth.entity';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { Role } from '../../auth/entities/role.entity';
 import { BusinessBlueprint } from './business.seeder';
+import { faker } from '@faker-js/faker';
 
 export interface ITenantUser {
   id: string;
@@ -71,14 +72,23 @@ export async function seedTenantUsers(
 
   for (const uConfig of assignedRoleList) {
     const userEmail = `${uConfig.emailPrefix}.${bizBlueprint.prefix.toLowerCase()}@uduakiet.com`;
+    const profilePictureUrl = faker.image.personPortrait({
+      size: 512,
+    });
 
-    const user_profile = {
+    const user_profile: Partial<User> = {
       business_id: businessId,
       store_id: primaryStoreId,
       first_name: uConfig.first,
       last_name: `${uConfig.last} (${bizBlueprint.prefix})`,
       company_email: userEmail,
       role_id: uConfig.role.id,
+      profile_picture: profilePictureUrl
+        ? {
+            url: profilePictureUrl,
+            publicId: `seed_avatar_${faker.string.alphanumeric(8)}`,
+          }
+        : null,
     };
 
     const createdUser = userRepository.create(user_profile);
@@ -93,12 +103,12 @@ export async function seedTenantUsers(
       }),
     );
 
-    console.log(`Seeded user profile for ${userEmail}:`, user_profile);
+    console.log(
+      `Seeded user: ${userEmail} with role: ${uConfig.role.name} for business: ${bizBlueprint.display_name}`,
+    );
 
     tenantUsers.push({ id: savedUser.id, email: userEmail });
   }
-
-  console.log(`Seeded  users for business ${bizBlueprint.name}: `, tenantUsers);
 
   return tenantUsers;
 }

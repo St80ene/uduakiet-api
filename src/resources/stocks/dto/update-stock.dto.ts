@@ -22,4 +22,7 @@ export class UpdateStockDto {
   @IsOptional()
   @NormalizeString()
   reason?: string;
+
+  @IsOptional()
+  supplier_id?: string;
 }

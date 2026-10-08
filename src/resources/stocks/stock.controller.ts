@@ -52,6 +52,7 @@ export class StocksController {
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
     UserRole.STOREMAN,
+    UserRole.CASHIER,
   ])
   @Get()
   findAll(
@@ -70,6 +71,7 @@ export class StocksController {
     UserRole.ADMIN,
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
+    UserRole.CASHIER,
     UserRole.STOREMAN,
   ])
   @Get(':id')

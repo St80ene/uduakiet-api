@@ -7,7 +7,6 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -63,18 +62,8 @@ export class Product extends BaseEntity {
   })
   images?: CloudinaryImage[];
 
-  /**
-   * Current/default product cost.
-   *
-   * This represents the product's current master pricing,
-   * not the historical cost of a stock transaction.
-   */
-  @Column('decimal', {
-    precision: 12,
-    scale: 2,
-    default: 0.0,
-  })
-  cost_price!: number;
+  @Column({ type: 'varchar', length: 100 })
+  sku!: string; // The internal SKU code
 
   /**
    * Current/default selling price.
@@ -83,7 +72,7 @@ export class Product extends BaseEntity {
     precision: 12,
     scale: 2,
   })
-  selling_price!: number;
+  selling_price!: number; // Base retail floor price
 
   /**
    * Quantity at or below which the product is considered low stock
@@ -132,8 +121,8 @@ export class Product extends BaseEntity {
   })
   status!: ProductStatus;
 
-  @OneToOne(() => ProductSource, (source) => source.product)
-  source!: ProductSource;
+  @OneToMany(() => ProductSource, (source) => source.product)
+  sources!: ProductSource[];
 
   @OneToMany(() => Stock, (stock) => stock.product)
   stocks!: Stock[];

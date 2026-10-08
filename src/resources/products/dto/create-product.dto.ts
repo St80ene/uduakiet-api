@@ -26,6 +26,10 @@ export class CreateProductDto {
   @IsOptional()
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  sku?: string;
+
   @IsUUID()
   @IsOptional()
   category_id?: string;
@@ -41,18 +45,6 @@ export class CreateProductDto {
   })
   @Type(() => Number)
   selling_price!: number;
-
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message: 'Cost price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Cost price cannot be negative.',
-  })
-  @Type(() => Number)
-  cost_price!: number;
 
   @IsNumber(
     { maxDecimalPlaces: 0 },

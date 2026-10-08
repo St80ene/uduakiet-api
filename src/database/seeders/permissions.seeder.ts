@@ -59,9 +59,8 @@ export async function seedGlobalPermissionsAndRoles(
     roles.push(await roleRepository.save(role));
   }
 
+  // 1. Existing Super Admin assignment (Gets everything)
   const superAdminRole = roles.find((r) => r.name === UserRole.SUPER_ADMIN)!;
-  const adminRole = roles.find((r) => r.name === UserRole.ADMIN)!;
-
   await queryRunner.manager
     .createQueryBuilder()
     .insert()
@@ -74,6 +73,8 @@ export async function seedGlobalPermissionsAndRoles(
     )
     .execute();
 
+  // 2. Existing Admin assignment (Gets almost everything except core business management)
+  const adminRole = roles.find((r) => r.name === UserRole.ADMIN)!;
   const adminPermissions = permissions.filter(
     (p) => !p.name.startsWith('businesses.'),
   );
@@ -84,6 +85,69 @@ export async function seedGlobalPermissionsAndRoles(
     .values(
       adminPermissions.map((p) => ({
         role_id: adminRole.id,
+        permission_id: p.id,
+      })),
+    )
+    .execute();
+
+  // =========================================================================
+  // 3. MANAGER PERMISSIONS (Branch/Store Oversight, Stock, Procurement)
+  // =========================================================================
+  const managerRole = roles.find((r) => r.name === UserRole.MANAGER)!;
+  const managerAllowedModules = [
+    'products',
+    'categories',
+    'suppliers',
+    'stocks',
+    'stock_movements',
+    'purchase_orders',
+    'stores',
+    'audit_logs',
+    'reports',
+  ];
+
+  const managerPermissions = permissions.filter(
+    (p) =>
+      managerAllowedModules.some((mod) => p.name.startsWith(`${mod}.`)) ||
+      p.name === 'purchase_orders.approve' ||
+      p.name === 'stocks.adjust',
+  );
+
+  await queryRunner.manager
+    .createQueryBuilder()
+    .insert()
+    .into('role_permissions')
+    .values(
+      managerPermissions.map((p) => ({
+        role_id: managerRole.id,
+        permission_id: p.id,
+      })),
+    )
+    .execute();
+
+  // =========================================================================
+  // 4. CASHIER PERMISSIONS (Point of Sale, Read Products/Categories, Profile)
+  // =========================================================================
+  const cashierRole = roles.find((r) => r.name === UserRole.CASHIER)!;
+  const cashierAllowedPermissions = [
+    'products.read',
+    'categories.read',
+    'stocks.read',
+    'profile.read',
+    'profile.update',
+  ];
+
+  const cashierPermissions = permissions.filter((p) =>
+    cashierAllowedPermissions.includes(p.name),
+  );
+
+  await queryRunner.manager
+    .createQueryBuilder()
+    .insert()
+    .into('role_permissions')
+    .values(
+      cashierPermissions.map((p) => ({
+        role_id: cashierRole.id,
         permission_id: p.id,
       })),
     )

@@ -31,6 +31,7 @@ import {
 } from '../stock_movements/entities/stock_movement.entity';
 import { Product } from '../products/entities/product.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
+import { ProductSource } from '../product_sources/entities/product_source.entity';
 
 @Injectable()
 export class StocksService {
@@ -46,18 +47,14 @@ export class StocksService {
     user: AuthenticatedUser,
   ): Promise<ApiResponse<Stock>> {
     const { businessId, storeId, id } = user;
-
     const { product_id, initial_quantity, direction } = payload;
 
     const queryRunner = this.dataSource.createQueryRunner();
-
     await queryRunner.connect();
     await queryRunner.startTransaction();
-
     const manager = queryRunner.manager;
 
     try {
-      // Validate that the stock record does not already exist for the given product, business, and store.
       const existingStock = await manager.findOne(Stock, {
         where: {
           product_id: product_id,
@@ -78,7 +75,7 @@ export class StocksService {
         );
       }
 
-      const product = await queryRunner.manager.findOne(Product, {
+      const product = await manager.findOne(Product, {
         where: {
           id: product_id,
           business_id: businessId,
@@ -91,22 +88,28 @@ export class StocksService {
         );
       }
 
+      /**
+       * ------------------------------------------------------------
+       * RESOLVE COST FOR BASE INITIAL ADJUSTMENT
+       * ------------------------------------------------------------
+       */
+      const cheapestSource = await manager.findOne(ProductSource, {
+        where: { product_id: product.id, business_id: businessId },
+        order: { cost_price: 'ASC' },
+      });
+
+      const resolvedCostPrice = cheapestSource
+        ? Number(cheapestSource.cost_price)
+        : Number((product.selling_price * 0.75).toFixed(2));
+
       const stock = manager.create(Stock, {
         product_id,
         business_id: businessId,
         store_id: storeId,
-        initial_quantity,
+        current_quantity: initial_quantity, // Initializing state values safely
       });
 
       await manager.save(Stock, stock);
-
-      /**
-       * ------------------------------------------------------------
-       * CALCULATE NEW BALANCE
-       * ------------------------------------------------------------
-       */
-
-      // create Stock movement ledger
 
       const stock_movement_ledger = manager.create(StockMovement, {
         stock_id: stock.id,
@@ -117,14 +120,13 @@ export class StocksService {
         quantity: initial_quantity,
         quantity_before: 0,
         quantity_after: initial_quantity,
-        unit_cost_price: product.cost_price,
+        unit_cost_price: resolvedCostPrice, // 🌟 FIXED: References resolved vendor cost
         unit_selling_price: product.selling_price,
       });
 
       await manager.save(StockMovement, stock_movement_ledger);
 
       await queryRunner.commitTransaction();
-
       return successResponse('Stock created successfully', stock);
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -134,10 +136,12 @@ export class StocksService {
     }
   }
 
-  async update(payload: UpdateStockDto, user: AuthenticatedUser) {
+  async update(
+    payload: UpdateStockDto,
+    user: AuthenticatedUser,
+  ): Promise<ApiResponse<Stock>> {
     // Validate context
-    const { businessId, storeId, id } = user;
-
+    const { businessId, storeId } = user;
     const { product_id, physical_quantity, reason } = payload;
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -147,38 +151,48 @@ export class StocksService {
 
     const manager = queryRunner.manager;
 
-    if (physical_quantity <= 0)
+    if (physical_quantity < 0) {
       throw new BadRequestException(
-        'Current quantity must be greater than zero.',
+        'Physical quantity cannot be a negative value.',
       );
+    }
 
     try {
-      // Validate that the stock record does exist for the given product, business, and store.
-
+      /**
+       * ------------------------------------------------------------
+       * LOCK & FETCH EXISTENT STOCK ROW
+       * ------------------------------------------------------------
+       */
       const driverType = queryRunner.dataSource.driver.options.type;
-      const supportsLocks =
-        driverType !== 'mysql' && driverType !== 'better-sqlite3';
 
-      let queryBuilder = queryRunner.manager
+      // Fixed condition logic: SQLite doesn't support select-for-update locks, MySQL and Postgres do.
+      const supportsLocks = driverType !== 'better-sqlite3';
+
+      let queryBuilder = manager
         .createQueryBuilder(Stock, 'stock')
         .where('stock.product_id = :productId', { productId: product_id })
-        .andWhere('stock.business_id = :businessId', { businessId: businessId })
-        .andWhere('stock.store_id = :storeId', { storeId: storeId });
+        .andWhere('stock.business_id = :businessId', { businessId })
+        .andWhere('stock.store_id = :storeId', { storeId });
 
-      // Only apply pessimistic write lock if the database supports it (MySQL)
       if (supportsLocks) {
         queryBuilder = queryBuilder.setLock('pessimistic_write');
       }
 
       const stock = await queryBuilder.getOne();
 
-      if (!stock)
+      if (!stock) {
+        // 🌟 FIXED: Changed error message to log product/store details instead of printing user.id
         throw new NotFoundException(
-          `Stock with ID "${id}" could not be found.`,
+          `Stock record for Product ID "${product_id}" within Store ID "${storeId}" could not be found.`,
         );
+      }
 
-      // fetch product for price snapshots
-      const product = await queryRunner.manager.findOne(Product, {
+      /**
+       * ------------------------------------------------------------
+       * PRODUCT RETRIEVAL
+       * ------------------------------------------------------------
+       */
+      const product = await manager.findOne(Product, {
         where: {
           id: product_id,
           business_id: businessId,
@@ -191,12 +205,48 @@ export class StocksService {
         );
       }
 
-      const quantity_before = stock.current_quantity;
+      /**
+       * ------------------------------------------------------------
+       * DYNAMIC COST PRICE RESOLUTION (Multi-Supplier Architecture)
+       * ------------------------------------------------------------
+       */
+      // Check the optional supplier_id parameter inside the payload if providing physical count details
 
+      let resolvedCostPrice = 0;
+
+      if (payload.supplier_id) {
+        const source = await manager.findOne(ProductSource, {
+          where: {
+            product_id: product.id,
+            supplier_id: payload.supplier_id,
+            business_id: businessId,
+          },
+        });
+        if (source) resolvedCostPrice = Number(source.cost_price);
+      }
+
+      // Fallback: Default to the cheapest wholesale price offered among linked providers
+      if (resolvedCostPrice === 0) {
+        const cheapestSource = await manager.findOne(ProductSource, {
+          where: { product_id: product.id, business_id: businessId },
+          order: { cost_price: 'ASC' },
+        });
+
+        // Ultimate backup: 75% calculation of retail floor selling price
+        resolvedCostPrice = cheapestSource
+          ? Number(cheapestSource.cost_price)
+          : Number((product.selling_price * 0.75).toFixed(2));
+      }
+
+      /**
+       * ------------------------------------------------------------
+       * QUANTITY DIFFERENCE ANALYSIS
+       * ------------------------------------------------------------
+       */
+      const quantity_before = stock.current_quantity;
       const difference = physical_quantity - quantity_before;
 
-      // Nothing changed.
-      // // No movement needs to be recorded.
+      // Nothing changed: Close connection transaction gracefully
       if (difference === 0) {
         await queryRunner.commitTransaction();
         return successResponse(
@@ -207,16 +257,16 @@ export class StocksService {
 
       const direction =
         difference > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT;
-
       const quantity = Math.abs(difference);
 
-      // Update stock
-
+      /**
+       * ------------------------------------------------------------
+       * COMMIT BALANCES & SAVE LEDGER ENTRIES
+       * ------------------------------------------------------------
+       */
       stock.current_quantity = physical_quantity;
-
       await manager.save(Stock, stock);
 
-      // create Stock movement ledger
       const stock_movement_ledger = manager.create(StockMovement, {
         stock_id: stock.id,
         business_id: businessId,
@@ -226,7 +276,7 @@ export class StocksService {
         quantity,
         quantity_before: quantity_before,
         quantity_after: physical_quantity,
-        unit_cost_price: product.cost_price,
+        unit_cost_price: resolvedCostPrice, // 🌟 FIXED: Resolves pricing from supplier pivot maps
         unit_selling_price: product.selling_price,
         reason,
       });
@@ -234,6 +284,10 @@ export class StocksService {
       await manager.save(StockMovement, stock_movement_ledger);
 
       await queryRunner.commitTransaction();
+      return successResponse(
+        'Stock level adjusted successfully via manual count.',
+        stock,
+      );
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -241,6 +295,7 @@ export class StocksService {
       await queryRunner.release();
     }
   }
+
   /**
    * Retrieves current stock balances.
    *

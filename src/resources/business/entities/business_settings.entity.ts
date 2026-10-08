@@ -3,11 +3,11 @@ import { IsString, IsOptional, IsBoolean } from 'class-validator';
 export class BusinessSettingsEntity {
   @IsString()
   @IsOptional()
-  themeColor?: string;
+  theme_color?: string;
 
   @IsBoolean()
   @IsOptional()
-  enableNotifications?: boolean;
+  enable_notifications?: boolean;
 
   @IsString()
   @IsOptional()

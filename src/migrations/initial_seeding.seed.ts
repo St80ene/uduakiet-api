@@ -69,9 +69,9 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         bizBlueprintConfig,
         currentScale.storeCountPerBusiness,
       );
-      const primaryStoreId: string = storeSeedData[0].id;
+      const primaryStoreId: string = storeSeedData[0]?.id;
 
-      const { supplierSeedData, productSeedData } =
+      const { supplierSeedData, productSeedData, productSourcesSeedData } =
         await seedCategoryAndSuppliers(
           queryRunner,
           businessId,
@@ -102,7 +102,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         bizBlueprintConfig,
         storeSeedData,
         supplierSeedData,
-        productSeedData,
+        productSourcesSeedData,
         tenantUsers,
         tenantAdminUser,
         currentScale,
@@ -115,6 +115,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         currentScale,
         storeSeedData,
         productSeedData,
+        productSourcesSeedData,
         tenantUsers,
       );
 

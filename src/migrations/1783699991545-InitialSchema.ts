@@ -791,6 +791,14 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'json',
           },
           {
+            name: 'sku' /** Added SKU as it is vital for standard product tracking. 
+            Stock Keeping Units (SKU) are unique identifiers 
+            for each distinct product and service that can be purchased. 
+            */,
+            type: 'varchar',
+            length: '100',
+          },
+          {
             name: 'uom_type',
             type: 'varchar',
             length: '20',
@@ -807,13 +815,6 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'varchar',
             length: '10',
             default: "'pcs'",
-          },
-          {
-            name: 'cost_price',
-            type: 'decimal',
-            precision: 12,
-            scale: 2,
-            default: 0,
           },
           {
             name: 'selling_price',
@@ -885,6 +886,12 @@ export class InitialSchema1783699991545 implements MigrationInterface {
         name: 'IDX_products_business_status',
         columnNames: ['business_id', 'status'],
       }),
+      new TableIndex({
+        // Unique constraint on SKU scope within a tenant business
+        name: 'UQ_products_business_sku',
+        columnNames: ['business_id', 'sku'],
+        isUnique: true,
+      }),
     ]);
 
     /**
@@ -925,6 +932,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             length: '255',
             isNullable: true,
           },
+
           {
             name: 'created_at',
             type: 'datetime',
@@ -985,6 +993,26 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'varchar',
             length: '36',
             isPrimary: true,
+          },
+          {
+            name: 'cost_price',
+            type: 'decimal',
+            precision: 12,
+            scale: 2,
+            default: 0,
+          },
+          {
+            //  REAL-WORLD UTILITY: The vendor's inner code identifier for this item
+            name: 'supplier_sku',
+            type: 'varchar',
+            length: '100',
+            isNullable: true,
+          },
+          {
+            // REAL-WORLD UTILITY: Approximate days required for supply fulfillment
+            name: 'estimated_lead_time_days',
+            type: 'int',
+            isNullable: true,
           },
           {
             name: 'business_id',
@@ -1484,6 +1512,10 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'quantity_requested',
+            type: 'int',
+          },
+          {
+            name: 'quantity_received',
             type: 'int',
           },
           {
