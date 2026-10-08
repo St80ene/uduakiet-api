@@ -84,10 +84,9 @@ export class ProductPaginationQueryDto extends BasePaginationQueryDto {
 
 export const PurchaseOrderSortFields: Record<string, string> = {
   created_at: 'purchase_order.created_at',
-  updated_at: 'purchase_order.updated_at',
+  po_number: 'purchase_order.po_number',
   status: 'purchase_order.status',
-  total_cost: 'purchase_order.total_cost',
-  total_quantity: 'purchase_order.total_quantity',
+  total_estimated_cost: 'purchase_order.total_estimated_cost',
 } as const;
 
 export const PurchaseOrderSortFieldNames = Object.keys(PurchaseOrderSortFields);
