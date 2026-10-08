@@ -29,8 +29,8 @@ export class Supplier {
   @Column({ type: 'varchar', length: 36 })
   business_id!: string;
 
-  @OneToMany(() => ProductSource, (productSource) => productSource.supplier)
-  productSources!: ProductSource[];
+  @OneToMany(() => ProductSource, (source) => source.supplier)
+  product_sources!: ProductSource[];
 
   @ManyToOne(() => Business, (business) => business.suppliers, {
     nullable: false,
@@ -41,7 +41,7 @@ export class Supplier {
   business!: Business;
 
   @OneToMany(() => PurchaseOrder, (po) => po.supplier)
-  purchaseOrders!: PurchaseOrder[];
+  purchase_orders!: PurchaseOrder[];
 
   @CreateDateColumn({
     name: 'created_at',

@@ -247,6 +247,9 @@ export class AuthService {
         role_id: true,
         business_id: true,
         store_id: true,
+        role: {
+          rolePermissions: { permission: true },
+        },
       },
     });
 
@@ -266,7 +269,9 @@ export class AuthService {
         company_email: email,
       },
       relations: {
-        role: true,
+        role: {
+          rolePermissions: { permission: true },
+        },
         business: false,
         store: false,
       },
@@ -359,7 +364,9 @@ export class AuthService {
         id: userId,
       },
       relations: {
-        role: true,
+        role: {
+          rolePermissions: { permission: true },
+        },
         business: false,
         store: false,
       },

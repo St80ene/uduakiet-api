@@ -59,7 +59,7 @@ export class AuditLogsService {
     const queryBuilder = this.auditLogRepository.createQueryBuilder('auditLog');
 
     if (userId) {
-      queryBuilder.andWhere('auditLog.userId = :userId', { userId });
+      queryBuilder.andWhere('auditLog.user_id = :userId', { userId });
     }
 
     if (entity) {
@@ -67,7 +67,7 @@ export class AuditLogsService {
     }
 
     if (entityId) {
-      queryBuilder.andWhere('auditLog.entityId = :entityId', { entityId });
+      queryBuilder.andWhere('auditLog.entity_id = :entityId', { entityId });
     }
 
     if (action) {
@@ -75,11 +75,11 @@ export class AuditLogsService {
     }
 
     if (oldValue) {
-      queryBuilder.andWhere('auditLog.oldValue = :oldValue', { oldValue });
+      queryBuilder.andWhere('auditLog.old_value = :oldValue', { oldValue });
     }
 
     if (newValue) {
-      queryBuilder.andWhere('auditLog.newValue = :newValue', { newValue });
+      queryBuilder.andWhere('auditLog.new_value = :newValue', { newValue });
     }
 
     queryBuilder.orderBy(`auditLog.${sortBy}`, order);
@@ -133,7 +133,7 @@ export class AuditLogsService {
     const [data, total] = await this.auditLogRepository.findAndCount({
       where: {
         entity,
-        entityId,
+        entity_id: entityId,
       },
       order: {
         created_at: 'DESC',

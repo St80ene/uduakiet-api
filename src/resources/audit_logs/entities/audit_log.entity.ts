@@ -34,19 +34,19 @@ export class AuditLog extends BaseEntity {
   action!: AuditLogAction;
 
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
-  userId!: string;
+  user_id!: string;
 
   @Column({ name: 'entity', type: 'varchar', length: 255, nullable: true })
   entity!: AuditLogEntity;
 
   @Column({ name: 'entity_id', type: 'uuid', nullable: true })
-  entityId!: string;
+  entity_id!: string;
 
   @Column({ name: 'old_value', type: 'json', nullable: true })
-  oldValue?: Record<string, any> | null;
+  old_value?: Record<string, any> | null;
 
   @Column({ name: 'new_value', type: 'json', nullable: true })
-  newValue?: Record<string, any> | null;
+  new_value?: Record<string, any> | null;
 
   @Column({ name: 'metadata', type: 'json', nullable: true })
   metadata?: AuditMetaData | null;

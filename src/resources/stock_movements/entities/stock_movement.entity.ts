@@ -25,6 +25,7 @@ export enum StockMovementType {
   NEW_STOCK = 'NEW_STOCK',
   ADDITIONAL_STOCK = 'ADDITIONAL_STOCK',
   CLOSING_STOCK = 'CLOSING_STOCK',
+  INITIAL_STOCK = 'INITIAL_STOCK',
 }
 
 export enum StockMovementDirection {

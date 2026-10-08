@@ -22,6 +22,11 @@ export class CreatePoItemDto {
   quantity_requested?: number; // e.g., 1500 for 1.5kg
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity_received?: number; // e.g., 1500 for 1.5kg
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   estimated_unit_cost?: number;

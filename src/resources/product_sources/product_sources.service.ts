@@ -39,7 +39,13 @@ export class ProductSourcesService {
     businessId: string,
     createProductSourceDto: CreateProductSourceDto,
   ): Promise<ApiResponse<ProductSource>> {
-    const { product_id, supplier_id } = createProductSourceDto;
+    const {
+      product_id,
+      supplier_id,
+      supplier_sku,
+      estimated_lead_time_days,
+      cost_price,
+    } = createProductSourceDto;
 
     if (!businessId) {
       throw new BadRequestException('Business is required.');
@@ -106,6 +112,9 @@ export class ProductSourcesService {
         product_id,
         business_id: businessId,
         supplier_id,
+        supplier_sku,
+        estimated_lead_time_days,
+        cost_price,
       });
 
       const saved_product_source = await manager.save(
@@ -165,17 +174,41 @@ export class ProductSourcesService {
       });
 
     if (search) {
-      queryBuilder.andWhere(
-        `
-          (
-            LOWER(product.name) LIKE LOWER(:search)
-            OR LOWER(supplier.name) LIKE LOWER(:search)
-          )
-          `,
-        {
-          search: `%${search}%`,
-        },
-      );
+      // 1. Check if the incoming search term is a valid integer number
+      const parsedSearchNumber = parseInt(search, 10);
+      const isNumber = !isNaN(parsedSearchNumber);
+
+      if (isNumber) {
+        // 2. If it's a number, allow an exact match on lead time, or text matches on SKU/Names
+        queryBuilder.andWhere(
+          `
+      (
+        LOWER(product.name) LIKE LOWER(:searchStr)
+        OR LOWER(supplier.name) LIKE LOWER(:searchStr)
+        OR LOWER(product_source.supplier_sku) LIKE LOWER(:searchStr)
+        OR product_source.estimated_lead_time_days = :searchNum
+      )
+      `,
+          {
+            searchStr: `%${search}%`,
+            searchNum: parsedSearchNumber, // Passes a clean number to the integer column
+          },
+        );
+      } else {
+        // 3. If it contains text/letters, skip the lead time column entirely to save DB performance
+        queryBuilder.andWhere(
+          `
+      (
+        LOWER(product.name) LIKE LOWER(:searchStr)
+        OR LOWER(supplier.name) LIKE LOWER(:searchStr)
+        OR LOWER(product_source.supplier_sku) LIKE LOWER(:searchStr)
+      )
+      `,
+          {
+            searchStr: `%${search}%`,
+          },
+        );
+      }
     }
 
     queryBuilder.orderBy(sortColumn, sortOrder).skip(skip).take(limitNumber);

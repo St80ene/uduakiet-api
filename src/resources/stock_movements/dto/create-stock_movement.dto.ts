@@ -17,6 +17,10 @@ export class CreateStockMovementDto {
   @IsNotEmpty()
   product_id!: string;
 
+  @IsUUID()
+  @IsNotEmpty()
+  supplier_id!: string;
+
   @IsEnum(StockMovementType, {
     message:
       'Invalid stock movement type. Must be one of: RECEIPT, SALE, ADJUSTMENT, TRANSFER_IN, TRANSFER_OUT, RETURN_IN, RETURN_OUT, DAMAGE, LOSS, REVERSAL.',

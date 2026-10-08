@@ -25,6 +25,7 @@ import {
   StockMovementPaginationQueryDto,
 } from '../../common/dto/pagination-query.dto';
 import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
+import { ProductSource } from '../product_sources/entities/product_source.entity';
 
 @Injectable()
 export class StockMovementsService {
@@ -55,14 +56,13 @@ export class StockMovementsService {
     await queryRunner.startTransaction();
 
     try {
+      const { businessId, storeId } = user;
+
       /**
        * ------------------------------------------------------------
        * PRODUCT
        * ------------------------------------------------------------
        */
-
-      const { businessId, storeId } = user;
-
       const product = await queryRunner.manager.findOne(Product, {
         where: {
           id: dto.product_id,
@@ -81,7 +81,6 @@ export class StockMovementsService {
        * STORE
        * ------------------------------------------------------------
        */
-
       if (!storeId) {
         throw new BadRequestException(
           'The authenticated user is not assigned to a store.',
@@ -103,31 +102,52 @@ export class StockMovementsService {
 
       /**
        * ------------------------------------------------------------
-       * STOCK
+       * DYNAMIC COST PRICE RESOLUTION (Multi-Supplier Architecture)
        * ------------------------------------------------------------
-       *
-       * Lock the existing stock row so concurrent requests cannot
-       * both read the same quantity and overwrite each other.
        */
+      let resolvedCostPrice = 0;
 
+      // If a specific supplier is provided in the DTO, pull their exact wholesale mapping price
+      if (dto.supplier_id) {
+        const source = await queryRunner.manager.findOne(ProductSource, {
+          where: {
+            product_id: product.id,
+            supplier_id: dto.supplier_id,
+            business_id: businessId,
+          },
+        });
+        if (source) resolvedCostPrice = Number(source.cost_price);
+      }
+
+      // Fallback: If no supplier is specified, pick the lowest current wholesale cost available for this item
+      if (resolvedCostPrice === 0) {
+        const cheapestSource = await queryRunner.manager.findOne(
+          ProductSource,
+          {
+            where: { product_id: product.id, business_id: businessId },
+            order: { cost_price: 'ASC' },
+          },
+        );
+
+        // If the product is not linked to any supplier at all, fall back to a 75% estimation of selling price
+        resolvedCostPrice = cheapestSource
+          ? Number(cheapestSource.cost_price)
+          : Number((product.selling_price * 0.75).toFixed(2));
+      }
+
+      /**
+       * ------------------------------------------------------------
+       * STOCK LOCKING
+       * ------------------------------------------------------------
+       */
       let stock = await queryRunner.manager
         .createQueryBuilder(Stock, 'stock')
         .setLock('pessimistic_write')
-        .where('stock.product_id = :productId', {
-          productId: product.id,
-        })
-        .andWhere('stock.store_id = :storeId', {
-          storeId: store.id,
-        })
-        .andWhere('stock.business_id = :businessId', {
-          businessId,
-        })
+        .where('stock.product_id = :productId', { productId: product.id })
+        .andWhere('stock.store_id = :storeId', { storeId: store.id })
+        .andWhere('stock.business_id = :businessId', { businessId })
         .getOne();
 
-      /**
-       * A stock balance can be created lazily if the product
-       * has never had inventory in this store.
-       */
       if (!stock) {
         stock = queryRunner.manager.create(Stock, {
           product_id: product.id,
@@ -138,26 +158,19 @@ export class StockMovementsService {
 
         await queryRunner.manager.save(Stock, stock);
 
-        /**
-         * Reload the row with a write lock after creation.
-         */
         stock = await queryRunner.manager
           .createQueryBuilder(Stock, 'stock')
           .setLock('pessimistic_write')
-          .where('stock.id = :stockId', {
-            stockId: stock.id,
-          })
+          .where('stock.id = :stockId', { stockId: stock.id })
           .getOneOrFail();
       }
 
       /**
        * ------------------------------------------------------------
-       * CALCULATE NEW BALANCE
+       * CALCULATE NEW BALANCE (Fixed variable calculation bug)
        * ------------------------------------------------------------
        */
-
-      const quantity_before = quantity;
-
+      const quantity_before = stock.current_quantity; // 🌟 FIXED: Mapped from database state instead of payload quantity
       let quantity_after: number;
 
       if (direction === StockMovementDirection.IN) {
@@ -165,10 +178,9 @@ export class StockMovementsService {
       } else {
         if (quantity_before < quantity) {
           throw new BadRequestException(
-            `Insufficient stock. Available: ${quantity_before}, requested: ${dto.quantity}.`,
+            `Insufficient stock. Available: ${quantity_before}, requested: ${quantity}.`,
           );
         }
-
         quantity_after = quantity_before - quantity;
       }
 
@@ -177,9 +189,7 @@ export class StockMovementsService {
        * UPDATE CURRENT BALANCE
        * ------------------------------------------------------------
        */
-
       stock.current_quantity = quantity_after;
-
       await queryRunner.manager.save(Stock, stock);
 
       /**
@@ -187,17 +197,16 @@ export class StockMovementsService {
        * CREATE IMMUTABLE LEDGER ENTRY
        * ------------------------------------------------------------
        */
-
       const movement = queryRunner.manager.create(StockMovement, {
         stock_id: stock.id,
-        business_id: user.businessId,
+        business_id: businessId,
         created_by_id: user.id,
         type: dto.type,
         direction: dto.direction,
-        quantity: dto.quantity,
+        quantity: quantity,
         quantity_before,
         quantity_after,
-        unit_cost_price: dto.unit_cost_price ?? product.cost_price,
+        unit_cost_price: dto.unit_cost_price ?? resolvedCostPrice, // 🌟 FIXED: References resolved vendor cost
         unit_selling_price: dto.unit_selling_price ?? product.selling_price,
       });
 
@@ -207,23 +216,19 @@ export class StockMovementsService {
       );
 
       await queryRunner.commitTransaction();
-
       return successResponse(
         'Stock movement created successfully',
         savedMovement,
       );
     } catch (error) {
       await queryRunner.rollbackTransaction();
-
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException
       ) {
         throw error;
       }
-
       console.error('Error creating stock movement:', error);
-
       throw new InternalServerErrorException(
         'Transaction failed while processing stock movement.',
       );
@@ -291,34 +296,69 @@ export class StockMovementsService {
           );
         }
 
+        /**
+         * ------------------------------------------------------------
+         * DYNAMIC COST PRICE RESOLUTION (Multi-Supplier Architecture)
+         * ------------------------------------------------------------
+         */
+        let resolvedCostPrice = 0;
+
+        // 1. If an optional supplier identifier is provided in the array DTO
+        if (dto.supplier_id) {
+          const source = await queryRunner.manager.findOne(ProductSource, {
+            where: {
+              product_id: product.id,
+              supplier_id: dto.supplier_id,
+              business_id: businessId,
+            },
+          });
+          if (source) resolvedCostPrice = Number(source.cost_price);
+        }
+
+        // 2. Fallback: If no supplier context exists, match the cheapest available vendor cost
+        if (resolvedCostPrice === 0) {
+          const cheapestSource = await queryRunner.manager.findOne(
+            ProductSource,
+            {
+              where: { product_id: product.id, business_id: businessId },
+              order: { cost_price: 'ASC' },
+            },
+          );
+
+          // 3. Absolute Fallback: 75% margin calculation if product has zero wholesale mappings
+          resolvedCostPrice = cheapestSource
+            ? Number(cheapestSource.cost_price)
+            : Number((product.selling_price * 0.75).toFixed(2));
+        }
+
+        /**
+         * ------------------------------------------------------------
+         * STOCK LOCKING
+         * ------------------------------------------------------------
+         */
         let stock = await queryRunner.manager
           .createQueryBuilder(Stock, 'stock')
           .setLock('pessimistic_write')
-          .where('stock.product_id = :productId', {
-            productId: product.id,
-          })
-          .andWhere('stock.store_id = :storeId', {
-            storeId: store.id,
-          })
+          .where('stock.product_id = :productId', { productId: product.id })
+          .andWhere('stock.store_id = :storeId', { storeId: store.id })
           .andWhere('stock.business_id = :businessId', {
-            businessId: user.businessId,
+            businessId: businessId,
           })
           .getOne();
 
         if (!stock) {
+          // 🌟 FIXED: Properties aligned to match your latest Entity configurations
           stock = queryRunner.manager.create(Stock, {
             product_id: product.id,
-            business_id: user.businessId,
+            business_id: businessId,
             store_id: store.id,
-            quantity: 0,
-            reorder_level: 5,
+            current_quantity: 0,
           });
 
           await queryRunner.manager.save(Stock, stock);
         }
 
         const quantityBefore = stock.current_quantity;
-
         let quantityAfter: number;
 
         if (dto.direction === StockMovementDirection.IN) {
@@ -329,24 +369,27 @@ export class StockMovementsService {
               `Insufficient stock for "${product.name}". Available: ${quantityBefore}, requested: ${dto.quantity}.`,
             );
           }
-
           quantityAfter = quantityBefore - dto.quantity;
         }
 
         stock.current_quantity = quantityAfter;
-
         await queryRunner.manager.save(Stock, stock);
 
+        /**
+         * ------------------------------------------------------------
+         * CREATE IMMUTABLE LEDGER ENTRIES
+         * ------------------------------------------------------------
+         */
         const movement = queryRunner.manager.create(StockMovement, {
           stock_id: stock.id,
-          business_id: user.businessId,
+          business_id: businessId,
           created_by_id: user.id,
           type: dto.type,
           direction: dto.direction,
           quantity: dto.quantity,
           quantity_before: quantityBefore,
           quantity_after: quantityAfter,
-          unit_cost_price: dto.unit_cost_price ?? product.cost_price,
+          unit_cost_price: dto.unit_cost_price ?? resolvedCostPrice, // 🌟 FIXED: Sourced per dynamic vendor resolution
           unit_selling_price: dto.unit_selling_price ?? product.selling_price,
         });
 
@@ -354,25 +397,20 @@ export class StockMovementsService {
           StockMovement,
           movement,
         );
-
         movements.push(savedMovement);
       }
 
       await queryRunner.commitTransaction();
-
       return successResponse('Stock movements created successfully', movements);
     } catch (error) {
       await queryRunner.rollbackTransaction();
-
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException
       ) {
         throw error;
       }
-
       console.error('Error creating stock movements:', error);
-
       throw new InternalServerErrorException(
         'Transaction failed while processing stock movements.',
       );

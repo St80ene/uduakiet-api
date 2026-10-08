@@ -33,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         'user.role_id',
         'user.business_id',
         'user.store_id',
+        'role.name',
       ])
       .where('user.id = :userId', {
         userId: payload.sub,

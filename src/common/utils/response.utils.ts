@@ -1,3 +1,9 @@
+// import { PaginationMeta } from '../dto/pagination-query.dto';
+
+// export interface ApiResponseData<T> {
+//   [key: string]: T[];
+//   meta: PaginationMeta;
+// }
 export interface ApiResponse<T> {
   status: boolean;
   message: string;

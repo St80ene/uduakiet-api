@@ -5,6 +5,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { Product } from './entities/product.entity';
@@ -43,6 +44,9 @@ import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
 import { allowedTransitions, UpdateProductDto } from './dto/update-product.dto';
 import { StockMovement } from '../stock_movements/entities/stock_movement.entity';
+import { generateRealisticSku } from '../../common/utils/helpers/sku_generator.util';
+import { Business } from '../business/entities/business.entity';
+import { Category } from '../categories/entities/category.entity';
 
 @Injectable()
 export class ProductsService {
@@ -77,6 +81,7 @@ export class ProductsService {
     user: AuthenticatedUser,
     files?: Express.Multer.File[],
   ): Promise<ApiResponse<Product>> {
+    const { storeId, businessId } = user;
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -85,23 +90,27 @@ export class ProductsService {
     const productImages: CloudinaryImage[] = [];
 
     try {
-      if (files?.length) {
-        const uploadedResults = await Promise.all(
-          files.map((file) =>
-            this.cloudinaryService.uploadImage(file, 'products'),
-          ),
-        );
+      let business: Business | null = null;
+      if (businessId) {
+        business = await queryRunner.manager.findOne(Business, {
+          where: {
+            id: businessId,
+          },
+        });
 
-        productImages.push(...uploadedResults);
+        if (!business) {
+          throw new UnauthorizedException(
+            'The authenticated user is not assigned to a valid business.',
+          );
+        }
       }
-
       let store: Store | null = null;
 
-      if (user.storeId) {
+      if (storeId) {
         store = await queryRunner.manager.findOne(Store, {
           where: {
-            id: user.storeId,
-            business_id: user.businessId,
+            id: storeId,
+            business_id: businessId,
           },
         });
 
@@ -112,17 +121,43 @@ export class ProductsService {
         }
       }
 
+      let category: Category | null = null;
+
+      if (createProductDto.category_id) {
+        category = await queryRunner.manager.findOne(Category, {
+          where: {
+            id: createProductDto.category_id,
+          },
+        });
+
+        if (!category) {
+          throw new BadRequestException('Invalid category specified.');
+        }
+      }
+
+      if (files?.length) {
+        const uploadedResults = await Promise.all(
+          files.map((file) =>
+            this.cloudinaryService.uploadImage(file, 'products'),
+          ),
+        );
+
+        productImages.push(...uploadedResults);
+      }
+
       const product = queryRunner.manager.create(Product, {
         name: createProductDto.name,
         description: createProductDto.description ?? null,
         selling_price: createProductDto.selling_price,
-        cost_price: createProductDto.cost_price,
+        sku:
+          createProductDto.sku ??
+          `${generateRealisticSku({ categoryName: category?.name ?? 'GEN', productName: createProductDto.name, brandName: business?.display_name })}`,
         images: productImages,
         uom_type: createProductDto.uom_type,
         uom_base_name: createProductDto.uom_base_name,
         uom_display_name: createProductDto.uom_display_name,
         category_id: createProductDto.category_id ?? null,
-        business_id: user.businessId,
+        business_id: businessId,
         default_reorder_point: createProductDto.default_reorder_point ?? 5,
       });
 
@@ -188,7 +223,7 @@ export class ProductsService {
     const queryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.source', 'source')
+      .leftJoinAndSelect('product.sources', 'sources')
       .leftJoinAndSelect('product.stocks', 'stock')
       .where('product.deleted_at IS NULL')
       .andWhere('product.business_id = :businessId', {
@@ -261,7 +296,7 @@ export class ProductsService {
           store: true,
         },
         category: true,
-        source: {
+        sources: {
           supplier: true,
         },
       },

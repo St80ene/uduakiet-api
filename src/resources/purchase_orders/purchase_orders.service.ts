@@ -7,15 +7,18 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, ILike, FindOptionsWhere, In } from 'typeorm';
+import { Repository, DataSource, In, Brackets } from 'typeorm';
 import { CreatePurchaseOrderDto } from './dto/create-purchase_order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
 import {
   PurchaseOrder,
+  PurchaseOrderListItem,
+  PurchaseOrderRawRow,
   PurchaseOrderStatus,
 } from './entities/purchase_order.entity';
 import { PurchaseOrderItem } from './entities/purchase_order_item.entity';
 import {
+  PaginationMeta,
   PurchaseOrderPaginationQueryDto,
   PurchaseOrderSortFields,
 } from '../../common/dto/pagination-query.dto';
@@ -308,73 +311,99 @@ export class PurchaseOrdersService {
     businessId: string,
     paginationQuery: PurchaseOrderPaginationQueryDto,
     storeId?: string,
-  ) {
+  ): Promise<
+    ApiResponse<{
+      purchase_orders: PurchaseOrderRawRow[];
+      meta: PaginationMeta;
+    }>
+  > {
+    const SORTABLE_COLUMNS: Record<string, string> = {
+      created_at: 'purchase_order.created_at',
+      po_number: 'purchase_order.po_number',
+      status: 'purchase_order.status',
+      total_estimated_cost: 'purchase_order.total_estimated_cost',
+    };
+
     const {
       page = 1,
       limit = 10,
-      status,
-      approved_by_id,
-      supplier_name,
+      search,
+      order = 'DESC',
+      sortBy = 'created_at',
     } = paginationQuery;
-    const skip = (page - 1) * limit;
 
-    const { search, order = 'DESC', sortBy = 'created_at' } = paginationQuery;
-
-    const sortColumn = PurchaseOrderSortFields[sortBy];
-
-    const sortOrder: 'ASC' | 'DESC' =
-      order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    const findWhere: FindOptionsWhere<PurchaseOrder> = {};
-
-    if (status) {
-      findWhere['status'] = status as PurchaseOrderStatus;
-    }
-    if (approved_by_id) {
-      findWhere['approved_by_id'] = ILike(`%${approved_by_id}%`);
-    }
-    if (storeId) {
-      findWhere['store_id'] = ILike(`%${storeId}%`);
-    }
-    if (supplier_name) {
-      findWhere['supplier_name'] = ILike(`%${supplier_name}%`);
-    }
+    const sortColumn = PurchaseOrderSortFields[sortBy] || 'created_at';
+    const sortOrder = order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const queryBuilder = this.purchaseOrderRepository
       .createQueryBuilder('purchase_order')
-      .leftJoinAndSelect('purchase_order.items', 'items')
-      .where(findWhere)
-      .andWhere('purchase_order.business_id = :businessId', { businessId });
+      .leftJoin('purchase_order.supplier', 'supplier')
+      .select([
+        'purchase_order.id AS id',
+        'purchase_order.po_number AS po_number',
+        'purchase_order.status AS status',
+        'purchase_order.total_estimated_cost AS total_estimated_cost',
+        'purchase_order.created_at AS created_at',
+        'supplier.name AS supplier_name',
+      ])
+      .addSelect((subQuery) => {
+        return subQuery
+          .select('COUNT(item.id)')
+          .from('purchase_order_items', 'item')
+          .where('item.purchase_order_id = purchase_order.id');
+      }, 'items_count')
+      .where('purchase_order.business_id = :businessId', { businessId });
+
+    if (storeId) {
+      queryBuilder.andWhere('purchase_order.store_id = :storeId', { storeId });
+    }
 
     if (search) {
       queryBuilder.andWhere(
-        `
-          (
-            LOWER(purchase_order.po_number) LIKE LOWER(:search)
-            OR LOWER(purchase_order.status) LIKE LOWER(:search)
-          )
-          `,
-        {
-          search: `%${search}%`,
-        },
+        new Brackets((qb) => {
+          qb.where('purchase_order.po_number LIKE :search')
+            .orWhere('purchase_order.status LIKE :search')
+            .orWhere('supplier.name LIKE :search')
+            .orWhere('purchase_order.status LIKE :search');
+        }),
+        { search: `%${search}%` },
       );
     }
 
-    queryBuilder.orderBy(sortColumn, sortOrder).skip(skip).take(limit);
+    const orderByColumn =
+      SORTABLE_COLUMNS[sortColumn] ?? SORTABLE_COLUMNS.created_at;
+    const orderDirection = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    const [orders, totalItems] = await queryBuilder.getManyAndCount();
+    const countQuery = queryBuilder.clone();
 
-    const totalPages = Math.ceil(totalItems / limit);
+    const dataQuery = queryBuilder
+      .orderBy(orderByColumn, orderDirection)
+      .limit(limit)
+      .offset((page - 1) * limit);
+    const [rows, totalItems] = await Promise.all([
+      dataQuery.getRawMany<PurchaseOrderRawRow>(),
+      countQuery.getCount(),
+    ]);
 
-    return {
-      data: orders,
+    const purchase_orders: PurchaseOrderListItem[] = rows.map((row) => ({
+      ...row,
+      items_count: Number(row.items_count),
+      total_estimated_cost: Number(row.total_estimated_cost),
+    }));
+
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    return successResponse('Purchase Orders retrieved successfully', {
+      purchase_orders,
       meta: {
         totalItems,
         itemsPerPage: limit,
         totalPages,
         currentPage: page,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
       },
-    };
+    });
   }
 
   // READ ONE: Detailed lookup via ID reference
