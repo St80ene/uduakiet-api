@@ -19,6 +19,7 @@ import { Stock } from '../../stocks/entities/stock.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { ProductSource } from '../../product_sources/entities/product_source.entity';
 import { StockMovement } from '../../stock_movements/entities/stock_movement.entity';
+import { Role } from '../../../auth/entities/role.entity';
 
 export enum BusinessStatus {
   ACTIVE = 'ACTIVE',
@@ -238,6 +239,9 @@ export class Business extends BaseEntity {
 
   @OneToMany(() => StockMovement, (movement) => movement.business)
   movements!: StockMovement[]; // Table to link suppliers and products
+
+  @OneToMany(() => Role, (role) => role.business)
+  roles!: Role[];
 
   // ==========================================================
   // TIMESTAMPS

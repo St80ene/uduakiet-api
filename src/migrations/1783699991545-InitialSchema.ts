@@ -305,6 +305,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             length: '100',
             isUnique: true,
           },
+          { name: 'business_id', type: 'varchar', length: '36' },
           {
             name: 'description',
             type: 'varchar',
@@ -325,6 +326,14 @@ export class InitialSchema1783699991545 implements MigrationInterface {
         ],
       }),
       true,
+    );
+
+    await queryRunner.createIndex(
+      'roles',
+      new TableIndex({
+        name: 'IDX_roles_business',
+        columnNames: ['business_id'],
+      }),
     );
 
     /**

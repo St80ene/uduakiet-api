@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   Unique,
@@ -9,6 +10,7 @@ import { User } from '../../resources/users/entities/user.entity';
 import { RolePermissions } from './role_permissions.entity';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { IsEnum } from 'class-validator';
+import { Business } from '../../resources/business/entities/business.entity';
 
 @Entity({ name: 'roles' })
 @Unique(['name'])
@@ -29,6 +31,14 @@ export class Role {
     default: UserRole.CASHIER,
   })
   name!: UserRole;
+
+  @Column({ type: 'varchar', length: 36, nullable: false })
+  business_id!: string;
+
+  @ManyToOne(() => Business, (business) => business.roles, {
+    onDelete: 'CASCADE',
+  })
+  business!: Business;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   description?: string;

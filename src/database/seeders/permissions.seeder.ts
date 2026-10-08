@@ -11,10 +11,12 @@ interface PermissionDefinition {
 interface RoleDefinition {
   name: UserRole;
   description: string;
+  business_id: string;
 }
 
 export async function seedGlobalPermissionsAndRoles(
   queryRunner: QueryRunner,
+  businessId: string,
   modules: string[],
 ) {
   const permissionRepository: Repository<Permission> =
@@ -46,11 +48,28 @@ export async function seedGlobalPermissionsAndRoles(
     {
       name: UserRole.SUPER_ADMIN,
       description: 'System or Platform Administrator',
+      business_id: businessId,
     },
-    { name: UserRole.ADMIN, description: 'Business Owner or General Manager' },
-    { name: UserRole.MANAGER, description: 'Branch or Store Manager' },
-    { name: UserRole.STOREMAN, description: 'Warehouse / Inventory Handler' },
-    { name: UserRole.CASHIER, description: 'Sales Point Operator' },
+    {
+      name: UserRole.ADMIN,
+      description: 'Business Owner or General Manager',
+      business_id: businessId,
+    },
+    {
+      name: UserRole.MANAGER,
+      description: 'Branch or Store Manager',
+      business_id: businessId,
+    },
+    {
+      name: UserRole.STOREMAN,
+      description: 'Warehouse / Inventory Handler',
+      business_id: businessId,
+    },
+    {
+      name: UserRole.CASHIER,
+      description: 'Sales Point Operator',
+      business_id: businessId,
+    },
   ];
 
   const roles: Role[] = [];
