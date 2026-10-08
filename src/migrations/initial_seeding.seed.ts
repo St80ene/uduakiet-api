@@ -44,10 +44,7 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
       'product_sources',
     ];
 
-    // 1. Setup Global Roles & Permissions
-    const roles = await seedGlobalPermissionsAndRoles(queryRunner, modules);
-
-    // 2. Setup Default Password for Tenant Users
+    //  Setup Default Password for Tenant Users
     const defaultPassword = await passwordHasher('Test@123!#');
 
     // 3. Loop Through Business Tenants
@@ -63,6 +60,13 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
         bIndex,
         profileKey,
       );
+      // Setup Global Roles & Permissions
+      const roles = await seedGlobalPermissionsAndRoles(
+        queryRunner,
+        businessId,
+        modules,
+      );
+
       const storeSeedData: Store[] = await seedStoresForBusiness(
         queryRunner,
         businessId,
