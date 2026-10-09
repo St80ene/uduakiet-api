@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { Stock } from './entities/stock.entity';
+import { LowStockEvent, Stock } from './entities/stock.entity';
 
 import { DashboardCard } from '../dashboard/interfaces/initial_interface';
 
@@ -140,65 +140,30 @@ export class StocksService {
     payload: UpdateStockDto,
     user: AuthenticatedUser,
   ): Promise<ApiResponse<Stock>> {
-    // Validate context
     const { businessId, storeId } = user;
     const { product_id, physical_quantity, reason } = payload;
 
-    const queryRunner = this.dataSource.createQueryRunner();
-
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    const manager = queryRunner.manager;
-
-    if (physical_quantity < 0) {
+    if (!Number.isInteger(physical_quantity) || physical_quantity < 0) {
       throw new BadRequestException(
-        'Physical quantity cannot be a negative value.',
+        'Physical quantity must be a non-negative whole number.',
       );
     }
 
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    const manager = queryRunner.manager;
+
+    let lowStockEvent: LowStockEvent | null = null;
+    let response: ApiResponse<Stock>;
+
     try {
       /**
-       * ------------------------------------------------------------
-       * LOCK & FETCH EXISTENT STOCK ROW
-       * ------------------------------------------------------------
-       */
-      const driverType = queryRunner.dataSource.driver.options.type;
-
-      // Fixed condition logic: SQLite doesn't support select-for-update locks, MySQL and Postgres do.
-      const supportsLocks = driverType !== 'better-sqlite3';
-
-      let queryBuilder = manager
-        .createQueryBuilder(Stock, 'stock')
-        .where('stock.product_id = :productId', { productId: product_id })
-        .andWhere('stock.business_id = :businessId', { businessId })
-        .andWhere('stock.store_id = :storeId', { storeId });
-
-      if (supportsLocks) {
-        queryBuilder = queryBuilder.setLock('pessimistic_write');
-      }
-
-      const stock = await queryBuilder.getOne();
-
-      if (!stock) {
-        // 🌟 FIXED: Changed error message to log product/store details instead of printing user.id
-        throw new NotFoundException(
-          `Stock record for Product ID "${product_id}" within Store ID "${storeId}" could not be found.`,
-        );
-      }
-
-      /**
-       * ------------------------------------------------------------
-       * PRODUCT RETRIEVAL
-       * ------------------------------------------------------------
+       * 1. VALIDATE PRODUCT (belongs to business, not soft-deleted)
        */
       const product = await manager.findOne(Product, {
-        where: {
-          id: product_id,
-          business_id: businessId,
-        },
+        where: { id: product_id, business_id: businessId },
       });
-
       if (!product) {
         throw new NotFoundException(
           `Product with ID "${product_id}" could not be found.`,
@@ -206,47 +171,41 @@ export class StocksService {
       }
 
       /**
-       * ------------------------------------------------------------
-       * DYNAMIC COST PRICE RESOLUTION (Multi-Supplier Architecture)
-       * ------------------------------------------------------------
+       * 2. LOCK OR CREATE THE BALANCE ROW
        */
-      // Check the optional supplier_id parameter inside the payload if providing physical count details
+      const driverType = queryRunner.dataSource.driver.options.type;
 
-      let resolvedCostPrice = 0;
+      // Fixed condition logic: SQLite doesn't support select-for-update locks, MySQL and Postgres do.
+      const supportsLocks = driverType !== 'better-sqlite3';
 
-      if (payload.supplier_id) {
-        const source = await manager.findOne(ProductSource, {
-          where: {
-            product_id: product.id,
-            supplier_id: payload.supplier_id,
+      let stock = await manager.findOne(Stock, {
+        where: {
+          product_id,
+          store_id: storeId,
+          business_id: businessId,
+        },
+        ...(supportsLocks
+          ? { lock: { mode: 'pessimistic_write' as const } }
+          : {}),
+      });
+
+      if (!stock) {
+        stock = await manager.save(
+          manager.create(Stock, {
+            product_id,
+            store_id: storeId,
             business_id: businessId,
-          },
-        });
-        if (source) resolvedCostPrice = Number(source.cost_price);
-      }
-
-      // Fallback: Default to the cheapest wholesale price offered among linked providers
-      if (resolvedCostPrice === 0) {
-        const cheapestSource = await manager.findOne(ProductSource, {
-          where: { product_id: product.id, business_id: businessId },
-          order: { cost_price: 'ASC' },
-        });
-
-        // Ultimate backup: 75% calculation of retail floor selling price
-        resolvedCostPrice = cheapestSource
-          ? Number(cheapestSource.cost_price)
-          : Number((product.selling_price * 0.75).toFixed(2));
+            current_quantity: 0,
+          }),
+        );
       }
 
       /**
-       * ------------------------------------------------------------
-       * QUANTITY DIFFERENCE ANALYSIS
-       * ------------------------------------------------------------
+       * 3. QUANTITY DIFFERENCE
        */
       const quantity_before = stock.current_quantity;
       const difference = physical_quantity - quantity_before;
 
-      // Nothing changed: Close connection transaction gracefully
       if (difference === 0) {
         await queryRunner.commitTransaction();
         return successResponse(
@@ -260,42 +219,68 @@ export class StocksService {
       const quantity = Math.abs(difference);
 
       /**
-       * ------------------------------------------------------------
-       * COMMIT BALANCES & SAVE LEDGER ENTRIES
-       * ------------------------------------------------------------
+       * 4. UPDATE BALANCE + WRITE LEDGER ENTRY
        */
       stock.current_quantity = physical_quantity;
       await manager.save(Stock, stock);
 
-      const stock_movement_ledger = manager.create(StockMovement, {
-        stock_id: stock.id,
-        business_id: businessId,
-        created_by_id: user.id,
-        type: StockMovementType.ADJUSTMENT,
-        direction,
-        quantity,
-        quantity_before: quantity_before,
-        quantity_after: physical_quantity,
-        unit_cost_price: resolvedCostPrice, // 🌟 FIXED: Resolves pricing from supplier pivot maps
-        unit_selling_price: product.selling_price,
-        reason,
-      });
+      await manager.save(
+        StockMovement,
+        manager.create(StockMovement, {
+          stock_id: stock.id,
+          business_id: businessId,
+          created_by_id: user.id,
+          type: StockMovementType.ADJUSTMENT,
+          direction,
+          quantity,
+          quantity_before,
+          quantity_after: physical_quantity,
+          unit_selling_price: product.selling_price,
+          reason,
+        }),
+      );
 
-      await manager.save(StockMovement, stock_movement_ledger);
+      /**
+       * 5. DETECT REORDER-LEVEL CROSSING (reached or passed, downward only)
+       */
+      const crossedReorderLevel =
+        direction === StockMovementDirection.OUT &&
+        quantity_before > (product.default_reorder_point ?? 5) &&
+        physical_quantity <= (product.default_reorder_point ?? 5);
+
+      if (crossedReorderLevel) {
+        lowStockEvent = {
+          business_id: businessId,
+          store_id: stock.store_id,
+          product_id: product.id,
+          current_quantity: physical_quantity,
+          reorder_level: product.default_reorder_point ?? 5,
+          is_out_of_stock: physical_quantity === 0,
+        };
+      }
 
       await queryRunner.commitTransaction();
-      return successResponse(
+
+      response = successResponse(
         'Stock level adjusted successfully via manual count.',
         stock,
       );
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
     }
-  }
 
+    // 6. PUBLISH AFTER COMMIT
+    if (lowStockEvent) {
+      // this.eventEmitter.emit('stock.low', lowStockEvent);
+    }
+
+    return response;
+  }
   /**
    * Retrieves current stock balances.
    *

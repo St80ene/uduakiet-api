@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -16,8 +17,18 @@ import { Business } from '../../business/entities/business.entity';
 import { Store } from '../../stores/entities/store.entity';
 import { StockMovement } from '../../stock_movements/entities/stock_movement.entity';
 
+export interface LowStockEvent {
+  business_id: string;
+  store_id: string;
+  product_id: string;
+  current_quantity: number;
+  reorder_level: number;
+  is_out_of_stock: boolean;
+}
+
 @Entity('stocks')
 @Unique('UQ_stock_product_store', ['product_id', 'store_id'])
+@Index('IDX_stock_business_store', ['business_id', 'store_id'])
 export class Stock extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
