@@ -7,6 +7,7 @@ import {
   IsInt,
   Min,
   IsOptional,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PurchaseOrderStatus } from '../entities/purchase_order.entity';
@@ -33,7 +34,8 @@ export class CreatePoItemDto {
 }
 
 export class CreatePurchaseOrderDto {
-  @IsString()
+  @IsEnum(PurchaseOrderStatus)
+  @IsOptional()
   status?: PurchaseOrderStatus;
 
   @IsNumber({ maxDecimalPlaces: 2 })

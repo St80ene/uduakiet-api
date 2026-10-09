@@ -17,6 +17,7 @@ import { Store } from '../../stores/entities/store.entity';
 import { StockMovement } from '../../stock_movements/entities/stock_movement.entity';
 
 @Entity('stocks')
+@Unique(['business_id', 'store_id', 'product_id'])
 @Unique('UQ_stock_product_store', ['product_id', 'store_id'])
 export class Stock extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')

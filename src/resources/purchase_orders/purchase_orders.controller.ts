@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { ReceivePurchaseOrderDto } from './entities/purchase_order_item.entity';
 
 @Controller('purchase-orders')
 @UseGuards(RolesGuard) // Checks roles for every route inside this controller
@@ -82,12 +83,22 @@ export class PurchaseOrdersController {
     );
   }
 
+  @Roles([UserRole.STOREMAN]) // Only these roles can receive
+  @Post(':id/receive')
+  receive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReceivePurchaseOrderDto,
+    @CurrentUser() { businessId, storeId, id: receivedById }: AuthenticatedUser,
+  ) {
+    return this.poService.receive(id, dto, receivedById, businessId, storeId);
+  }
+
   @Delete(':id')
-  @Roles([UserRole.SUPER_ADMIN]) // Destructive action restricted to Super Admin
-  remove(
+  @Roles([UserRole.SUPER_ADMIN, UserRole.STOREMAN, UserRole.MANAGER]) // Destructive action restricted to Super Admin
+  remove_draft(
     @CurrentUser() { businessId }: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.poService.remove(id, businessId);
+    return this.poService.remove_draft(id, businessId);
   }
 }

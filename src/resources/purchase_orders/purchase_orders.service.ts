@@ -16,7 +16,10 @@ import {
   PurchaseOrderRawRow,
   PurchaseOrderStatus,
 } from './entities/purchase_order.entity';
-import { PurchaseOrderItem } from './entities/purchase_order_item.entity';
+import {
+  PurchaseOrderItem,
+  ReceivePurchaseOrderDto,
+} from './entities/purchase_order_item.entity';
 import {
   PaginationMeta,
   PurchaseOrderPaginationQueryDto,
@@ -32,6 +35,12 @@ import { Business } from '../business/entities/business.entity';
 import { Store } from '../stores/entities/store.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { User } from '../users/entities/user.entity';
+import { Stock } from '../stocks/entities/stock.entity';
+import {
+  StockMovement,
+  StockMovementDirection,
+  StockMovementType,
+} from '../stock_movements/entities/stock_movement.entity';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -423,7 +432,7 @@ export class PurchaseOrdersService {
     businessId: string,
     storeId?: string,
   ): Promise<ApiResponse<PurchaseOrder>> {
-    const purchase_order = await this.purchaseOrderRepository.findOne({
+    const purchaseOrder = await this.purchaseOrderRepository.findOne({
       where: {
         id,
         business_id: businessId,
@@ -431,31 +440,278 @@ export class PurchaseOrdersService {
       },
     });
 
-    if (!purchase_order)
+    if (!purchaseOrder) {
       throw new NotFoundException(
         `Purchase Order with ID "${id}" could not be found.`,
       );
+    }
 
-    // Guard: Prevent modification of completed orders unless explicitly handling arrivals
     if (
-      purchase_order.status === PurchaseOrderStatus.RECEIVED ||
-      purchase_order.status === PurchaseOrderStatus.CANCELLED
+      purchaseOrder.status === PurchaseOrderStatus.RECEIVED ||
+      purchaseOrder.status === PurchaseOrderStatus.CANCELLED
     ) {
-      // Guard: Prevent modification of completed orders unless explicitly handling arrivals
       throw new BadRequestException(
-        `Cannot alter a purchase order that is already ${purchase_order?.status}.`,
+        `Cannot alter a purchase order that is already ${purchaseOrder.status}.`,
       );
     }
 
-    this.purchaseOrderRepository.merge(purchase_order, updatePoDto);
-    const updated: PurchaseOrder =
-      await this.purchaseOrderRepository.save(purchase_order);
+    // Status transitions are handled by dedicated workflow methods.
+    if (updatePoDto.status !== undefined) {
+      throw new BadRequestException(
+        'Purchase order status cannot be changed through this endpoint.',
+      );
+    }
 
-    return successResponse('Purchase Order updated successfully', updated);
+    this.purchaseOrderRepository.merge(purchaseOrder, updatePoDto);
+
+    const updatedPurchaseOrder =
+      await this.purchaseOrderRepository.save(purchaseOrder);
+
+    return successResponse(
+      'Purchase Order updated successfully',
+      updatedPurchaseOrder,
+    );
+  }
+
+  async receive(
+    po_id: string,
+    dto: ReceivePurchaseOrderDto,
+    businessId: string,
+    receivedById: string,
+    storeId?: string,
+  ): Promise<ApiResponse<PurchaseOrder>> {
+    // Create a dedicated database connection for this transaction.
+    // All stock, stock movement, item, and purchase order changes must
+    // succeed or fail together to prevent inconsistent inventory records.
+    const queryRunner = this.dataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Use the transaction's entity manager for every database operation
+      // so all changes participate in the same transaction.
+      const query_manager = queryRunner.manager;
+
+      // Retrieve the purchase order and its items.
+      // Scope the lookup to the business and, when provided, the store
+      // to prevent access to another tenant's purchase order.
+      // The pessimistic write lock helps prevent concurrent receiving
+      // operations from processing the same purchase order simultaneously.
+      const purchaseOrder = await query_manager.findOne(PurchaseOrder, {
+        where: {
+          id: po_id,
+          business_id: businessId,
+          ...(storeId && { store_id: storeId }),
+        },
+        relations: {
+          items: true,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      // Stop processing if the purchase order does not exist
+      // within the requested business/store scope.
+      if (!purchaseOrder) {
+        throw new NotFoundException(
+          `Purchase Order with ID "${po_id}" could not be found.`,
+        );
+      }
+
+      // Prevent receiving an order that has already been completed, draft
+      // or cancelled. This also helps prevent duplicate stock additions.
+      if (
+        purchaseOrder.status === PurchaseOrderStatus.RECEIVED ||
+        purchaseOrder.status === PurchaseOrderStatus.CANCELLED ||
+        purchaseOrder.status === PurchaseOrderStatus.DRAFT
+      ) {
+        throw new BadRequestException(
+          `Cannot receive a purchase order that is already ${purchaseOrder.status}.`,
+        );
+      }
+
+      // A purchase order must contain at least one item before stock
+      // can be received against it.
+      if (!purchaseOrder.items?.length) {
+        throw new BadRequestException(
+          'Cannot receive a purchase order without items.',
+        );
+      }
+
+      // Index the purchase order items by ID for efficient lookup.
+      // This lets us verify that every submitted receipt item belongs
+      // to the purchase order being received.
+      const itemMap = new Map(
+        purchaseOrder.items.map((item) => [item.id, item]),
+      );
+
+      // Track submitted item IDs so the same item cannot appear
+      // more than once in a single receipt request.
+      const submittedItemIds = new Set<string>();
+
+      // Process each item included in the current delivery.
+      for (const receiptItem of dto.items) {
+        // Reject duplicate entries to prevent accidentally adding
+        // the same delivery quantity more than once.
+        if (submittedItemIds.has(receiptItem.item_id)) {
+          throw new BadRequestException(
+            `Duplicate receipt item "${receiptItem.item_id}".`,
+          );
+        }
+
+        submittedItemIds.add(receiptItem.item_id);
+
+        // Find the corresponding item on this purchase order.
+        // Never accept an arbitrary purchase-order item from another order.
+        const item = itemMap.get(receiptItem.item_id);
+
+        if (!item) {
+          throw new BadRequestException(
+            `Item "${receiptItem.item_id}" does not belong to this purchase order.`,
+          );
+        }
+
+        // quantity is the quantity arriving in THIS delivery.
+        // previouslyReceived is the cumulative quantity received before now.
+        // requested is the total quantity originally ordered.
+        const quantity = receiptItem.quantity_received;
+        const previouslyReceived = Number(item.quantity_received ?? 0);
+        const requested = Number(item.quantity_requested);
+
+        // Accept only positive whole-number quantities and prevent
+        // receiving more units than were ordered.
+        if (
+          !Number.isInteger(quantity) ||
+          quantity <= 0 ||
+          previouslyReceived + quantity > requested
+        ) {
+          throw new BadRequestException(
+            `Invalid received quantity for product "${item.product_id}".`,
+          );
+        }
+
+        // Confirm that the product belongs to the current business.
+        // This protects tenant boundaries and prevents invalid references.
+        const product = await query_manager.findOne(Product, {
+          where: {
+            id: item.product_id,
+            business_id: businessId,
+          },
+        });
+
+        if (!product) {
+          throw new NotFoundException(
+            `Product "${item.product_id}" could not be found.`,
+          );
+        }
+
+        // Find the inventory record for this product at the destination store.
+        // A product can have separate stock records in different stores.
+        let stock = await query_manager.findOne(Stock, {
+          where: {
+            product_id: item.product_id,
+            business_id: businessId,
+            store_id: purchaseOrder.store_id,
+          },
+        });
+
+        // Capture the inventory balance before applying this delivery.
+        // If no stock record exists yet, its starting balance is zero.
+        const quantityBefore = stock ? Number(stock.current_quantity) : 0;
+
+        if (!stock) {
+          // First receipt for this product at this store:
+          // create a stock record initialized with the delivered quantity.
+          stock = query_manager.create(Stock, {
+            product_id: item.product_id,
+            business_id: businessId,
+            store_id: purchaseOrder.store_id,
+            current_quantity: quantity,
+          });
+        } else {
+          // Existing inventory: add only the quantity from this delivery,
+          // not the cumulative quantity received against the purchase order.
+          stock.current_quantity = quantityBefore + quantity;
+        }
+
+        // Persist the new inventory balance within the transaction.
+        await query_manager.save(Stock, stock);
+
+        // Record the inventory change in the stock movement ledger.
+        // This preserves an audit trail of who received the stock,
+        // how much arrived, its cost, and the before/after balances.
+        const movement = query_manager.create(StockMovement, {
+          stock_id: stock.id,
+          business_id: businessId,
+          created_by_id: receivedById,
+          type: StockMovementType.RECEIPT,
+          direction: StockMovementDirection.IN,
+          quantity,
+          quantity_before: quantityBefore,
+          quantity_after: quantityBefore + quantity,
+          unit_cost_price: Number(item.estimated_unit_cost),
+          unit_selling_price: Number(product.selling_price),
+        });
+
+        await query_manager.save(StockMovement, movement);
+
+        // Update the cumulative received quantity for this PO item.
+        // Example: 40 previously received + 10 arriving now = 50 received.
+        item.quantity_received = previouslyReceived + quantity;
+
+        await query_manager.save(PurchaseOrderItem, item);
+      }
+
+      // Check whether every item has now been received in full.
+      // An order with outstanding quantities must not be marked RECEIVED.
+      const fullyReceived = purchaseOrder.items.every(
+        (item) =>
+          Number(item.quantity_received) >= Number(item.quantity_requested),
+      );
+
+      // Transition to RECEIVED only when all ordered quantities
+      // have been fulfilled. Otherwise, retain the current status.
+      if (fullyReceived) {
+        purchaseOrder.status = PurchaseOrderStatus.RECEIVED;
+      }
+
+      // Persist the purchase order's final status within the same transaction
+      // as the inventory and ledger changes.
+      const updatedPurchaseOrder = await query_manager.save(
+        PurchaseOrder,
+        purchaseOrder,
+      );
+
+      // Commit only after every operation succeeds.
+      await queryRunner.commitTransaction();
+
+      // Return a message that distinguishes a complete receipt
+      // from a receipt that leaves quantities outstanding.
+      return successResponse(
+        fullyReceived
+          ? 'Purchase Order fully received successfully'
+          : 'Purchase Order receipt recorded successfully',
+        updatedPurchaseOrder,
+      );
+    } catch (error) {
+      // Roll back all changes if any operation fails, preventing a receipt
+      // from updating only some of the stock, ledger, or order records.
+      await queryRunner.rollbackTransaction();
+
+      // Preserve the original error for NestJS exception handling.
+      throw error;
+    } finally {
+      // Always release the database connection, whether the transaction
+      // succeeds or fails.
+      await queryRunner.release();
+    }
   }
 
   // DELETE: Remove drafts safely
-  async remove(id: string, businessId: string): Promise<ApiResponse<null>> {
+  async remove_draft(
+    id: string,
+    businessId: string,
+  ): Promise<ApiResponse<null>> {
     const purchase_order = await this.findOne(id, businessId);
 
     if (!purchase_order)
