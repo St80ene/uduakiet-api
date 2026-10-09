@@ -1,18 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
 import { StockMovementsService } from './stock_movements.service';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { CreateStockMovementDto } from './dto/create-stock_movement.dto';
 import { StockMovementPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -74,35 +65,5 @@ export class StockMovementsController {
     @Param('productId') productId: string,
   ) {
     return this.stockMovementsService.findByProduct(productId, user);
-  }
-
-  /**
-   * Create a stock movement and update the current stock balance.
-   *
-   * POST /stock-movements/movement
-   *
-   * The service performs both operations in one database transaction.
-   */
-  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
-  @Post('movement')
-  createMovement(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateStockMovementDto,
-  ) {
-    return this.stockMovementsService.createMovement(user, dto);
-  }
-
-  /**
-   * Create multiple stock movements atomically.
-   *
-   * POST /stock-movements/movement/bulk
-   */
-  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
-  @Post('movement/bulk')
-  bulkCreateMovements(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dtos: CreateStockMovementDto[],
-  ) {
-    return this.stockMovementsService.bulkCreateMovements(user, dtos);
   }
 }
