@@ -9,22 +9,22 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { BusinessesService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { UserPermission } from '../../common/enum/user_permission.enum';
 
 @Controller('businesses')
-@UseGuards(RolesGuard) // Apply the RolesGuard to all routes in this controller
 export class BusinessController {
   constructor(private readonly businessesService: BusinessesService) {}
 
   @Roles([UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.BUSINESS_CREATE])
   @Post()
   @UseInterceptors(FileInterceptor('logo'))
   create(
@@ -41,12 +41,14 @@ export class BusinessController {
     UserRole.STOREMAN,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.BUSINESS_SETTINGS_READ])
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.businessesService.findOne(id);
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.BUSINESS_SETTINGS_UPDATE])
   @Patch(':id')
   @UseInterceptors(FileInterceptor('logo'))
   update(
@@ -58,6 +60,7 @@ export class BusinessController {
   }
 
   @Roles([UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.BUSINESS_SETTINGS_DELETE])
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.businessesService.remove(id);

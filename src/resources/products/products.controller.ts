@@ -12,7 +12,6 @@ import {
   UploadedFiles,
   HttpStatus,
   ParseFilePipeBuilder,
-  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -27,21 +26,17 @@ import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user
 import { ApiResponse } from '../../common/utils/response.utils';
 import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { Product } from './entities/product.entity';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('products')
-@UseGuards(RolesGuard)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @Roles([
-    UserRole.ADMIN,
-    UserRole.SUPER_ADMIN,
-    UserRole.MANAGER,
-    UserRole.STOREMAN,
-  ])
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
+  @UserRolePermissions([UserPermission.PRODUCT_CREATE])
   @Post()
   @UseInterceptors(FilesInterceptor('images', 5)) // ◄ Allow up to 5 images
   create(
@@ -68,6 +63,7 @@ export class ProductsController {
     UserRole.STOREMAN,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.PRODUCT_READ])
   @Get()
   findAll(
     @Query() paginationQuery: ProductPaginationQueryDto,
@@ -83,6 +79,7 @@ export class ProductsController {
     UserRole.STOREMAN,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.PRODUCT_READ])
   @Get(':id')
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -92,6 +89,7 @@ export class ProductsController {
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.PRODUCT_AUDIT_LOG_READ])
   @Get(':id/audit-logs')
   getProductAuditLogs(
     @Param('id', ParseUUIDPipe) productId: string,
@@ -116,6 +114,7 @@ export class ProductsController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.PRODUCT_READ])
   @Get('inventory-health')
   getInventoryHealth(@CurrentUser() currentUser: AuthenticatedUser) {
     return this.productsService.getInventoryHealth(currentUser);

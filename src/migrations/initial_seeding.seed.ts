@@ -31,19 +31,6 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
       `🌍 Seeding Udua-kiet independent multitenant architecture using [${profileKey}] profile...`,
     );
 
-    const modules = [
-      'products',
-      'categories',
-      'suppliers',
-      'stocks',
-      'stock_movements',
-      'purchase_orders',
-      'users',
-      'businesses',
-      'audit_logs',
-      'product_sources',
-    ];
-
     //  Setup Default Password for Tenant Users
     const defaultPassword = await passwordHasher('Test@123!#');
 
@@ -64,7 +51,6 @@ export class InitialSeeding1785451531000 implements MigrationInterface {
       const roles = await seedGlobalPermissionsAndRoles(
         queryRunner,
         businessId,
-        modules,
       );
 
       const storeSeedData: Store[] = await seedStoresForBusiness(

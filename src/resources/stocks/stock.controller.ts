@@ -6,7 +6,6 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -17,12 +16,12 @@ import { StocksService } from './stock.service';
 import { StockPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { UserPermission } from '../../common/enum/user_permission.enum';
 
 @Controller('stocks')
-@UseGuards(RolesGuard)
 export class StocksController {
   constructor(private readonly stockService: StocksService) {}
 
@@ -32,6 +31,7 @@ export class StocksController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.STOCK_READ, UserPermission.STOCK_ADJUST])
   @Post()
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -54,6 +54,7 @@ export class StocksController {
     UserRole.STOREMAN,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.STOCK_READ])
   @Get()
   findAll(
     @CurrentUser() user: AuthenticatedUser,
@@ -74,6 +75,7 @@ export class StocksController {
     UserRole.CASHIER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.STOCK_READ])
   @Get(':id')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.stockService.findOne(id, user);
@@ -90,6 +92,7 @@ export class StocksController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.STOCK_READ])
   @Get('metrics')
   getWarehouseMetrics(@CurrentUser() user: AuthenticatedUser) {
     return this.stockService.getWarehouseMetrics(user);
@@ -101,6 +104,7 @@ export class StocksController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.STOCK_ADJUST])
   @Patch('adjustment')
   update(
     @CurrentUser() user: AuthenticatedUser,

@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -15,16 +14,17 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SupplierQueryDto } from './dto/supplier-query.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('suppliers')
-@UseGuards(RolesGuard)
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
+  @UserRolePermissions([UserPermission.SUPPLIER_CREATE])
   @Post()
   create(
     @Body() createSupplierDto: CreateSupplierDto,
@@ -39,12 +39,14 @@ export class SuppliersController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.SUPPLIER_READ])
   @Get()
   findAll(@Query() query: SupplierQueryDto) {
     return this.suppliersService.findAll(query);
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.SUPPLIER_READ])
   @Get('metrics')
   getSupplierMetrics() {
     return this.suppliersService.getSupplierMetrics();
@@ -56,6 +58,7 @@ export class SuppliersController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.SUPPLIER_READ])
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.suppliersService.findOne(id);
@@ -69,6 +72,7 @@ export class SuppliersController {
     UserRole.SUPPLIER,
   ])
   @Patch(':id')
+  @UserRolePermissions([UserPermission.SUPPLIER_UPDATE])
   update(
     @Param('id') id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
@@ -77,6 +81,7 @@ export class SuppliersController {
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.SUPPLIER_DELETE])
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.suppliersService.remove(id);

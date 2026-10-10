@@ -313,6 +313,11 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             isNullable: true,
           },
           {
+            name: 'is_system',
+            type: 'boolean',
+            default: false,
+          },
+          {
             name: 'created_at',
             type: 'datetime',
             default: 'CURRENT_TIMESTAMP',

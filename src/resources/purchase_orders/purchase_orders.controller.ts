@@ -8,7 +8,6 @@ import {
   Delete,
   ParseUUIDPipe,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { CreatePurchaseOrderDto } from './dto/create-purchase_order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
@@ -18,16 +17,17 @@ import { type AuthenticatedUser } from '../../auth/interfaces/authenticated-user
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { ReceivePurchaseOrderDto } from './entities/purchase_order_item.entity';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { UserPermission } from '../../common/enum/user_permission.enum';
 
 @Controller('purchase-orders')
-@UseGuards(RolesGuard) // Checks roles for every route inside this controller
 export class PurchaseOrdersController {
   constructor(private readonly poService: PurchaseOrdersService) {}
 
   @Post()
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.STOREMAN]) // Only these roles can create
+  @UserRolePermissions([UserPermission.PURCHASE_CREATE])
   create(
     @Body() createPurchaseOrderDto: CreatePurchaseOrderDto,
     @CurrentUser() { id, businessId, storeId }: AuthenticatedUser,
@@ -47,6 +47,7 @@ export class PurchaseOrdersController {
     UserRole.SUPER_ADMIN,
     UserRole.STOREMAN,
   ]) // Broad read access
+  @UserRolePermissions([UserPermission.PURCHASE_READ])
   findAll(
     @Query() paginationQuery: PurchaseOrderPaginationQueryDto,
     @CurrentUser() { businessId, storeId }: AuthenticatedUser,
@@ -61,6 +62,7 @@ export class PurchaseOrdersController {
     UserRole.SUPER_ADMIN,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.PURCHASE_READ])
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, storeId }: AuthenticatedUser,
@@ -70,6 +72,7 @@ export class PurchaseOrdersController {
 
   @Patch(':id')
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN]) // Only higher management can update
+  @UserRolePermissions([UserPermission.PURCHASE_UPDATE])
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, storeId }: AuthenticatedUser,
@@ -95,6 +98,7 @@ export class PurchaseOrdersController {
 
   @Delete(':id')
   @Roles([UserRole.SUPER_ADMIN, UserRole.STOREMAN, UserRole.MANAGER]) // Destructive action restricted to Super Admin
+  @UserRolePermissions([UserPermission.PURCHASE_DELETE])
   remove_draft(
     @CurrentUser() { businessId }: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

@@ -4,7 +4,6 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { ChangePasswordDto } from './dto/password.dto';
 import { ApiResponse } from '../common/utils/response.utils';
 import { User } from '../resources/users/entities/user.entity';
 import { JwtRefreshGuard } from './guards/jwt_refresh.guard';
@@ -41,11 +40,23 @@ export class AuthController {
     return this.authService.refresh(userId.toString(), refreshToken);
   }
 
-  @Post('change-password')
-  changePassword(
-    @CurrentUser('id') userId: string,
-    @Body() dto: ChangePasswordDto,
-  ): Promise<ApiResponse<string>> {
-    return this.authService.changePassword(userId, dto);
-  }
+  // @Public()
+  // @Post('forgot-password')
+  // forgotPassword(@Body() dto: { email: string }) {
+  //   return this.authService.forgotPassword(dto);
+  // }
+
+  // @Public()
+  // @Post('reset-password')
+  // passwordReset(@Body() dto: ChangePasswordDto) {
+  //   return this.authService.passwordReset(dto);
+  // }
+
+  // @Post('change-password')
+  // changePassword(
+  //   @CurrentUser('id') userId: string,
+  //   @Body() dto: ChangePasswordDto,
+  // ): Promise<ApiResponse<string>> {
+  //   return this.authService.changePassword(userId, dto);
+  // }
 }

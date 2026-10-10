@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { addMinutes } from 'date-fns';
@@ -113,6 +112,8 @@ export class AuthService {
     const auth = await this.userAuthRepository.findOneBy({
       user_id: user.id,
     });
+
+    const { randomBytes } = await import('node:crypto');
 
     const token = randomBytes(32).toString('hex');
 

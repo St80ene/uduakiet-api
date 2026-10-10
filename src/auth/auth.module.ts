@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshStrategy } from './strategies/refresh_jwt.strategy';
 import { JwtService } from '@nestjs/jwt';
 import { RolesGuard } from './guards/roles.guard';
+import { RolePermissionGuard } from './guards/role_permission.guard';
 
 @Module({
   imports: [
@@ -43,6 +44,10 @@ import { RolesGuard } from './guards/roles.guard';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolePermissionGuard,
     },
   ],
   exports: [AuthService],

@@ -10,7 +10,6 @@ import {
   Post,
   Query,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 
@@ -29,17 +28,18 @@ import { User } from './entities/user.entity';
 import { ApiResponse } from '../../common/utils/response.utils';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { UserPaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { RolesGuard } from '../../auth/guards/roles.guard';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('users')
-@UseGuards(RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
    * Create user
    */
-  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
+  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.USER_CREATE])
   @Post()
   @UseInterceptors(FileInterceptor('profile_image'))
   create(
@@ -67,6 +67,7 @@ export class UsersController {
    * Get users
    */
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.USER_READ])
   @Get()
   findAll(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -84,6 +85,7 @@ export class UsersController {
     UserRole.MANAGER,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.USER_READ])
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<ApiResponse<User>> {
     return this.usersService.findOne(id);
@@ -98,6 +100,7 @@ export class UsersController {
     UserRole.MANAGER,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.USER_UPDATE])
   @Patch(':id')
   @UseInterceptors(FileInterceptor('profile_image'))
   update(
@@ -139,6 +142,7 @@ export class UsersController {
    * Deactivate user
    */
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.USER_UPDATE])
   @Patch(':id/deactivate')
   deactivate(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -151,6 +155,7 @@ export class UsersController {
    * Activate user
    */
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.USER_UPDATE])
   @Patch(':id/activate')
   activate(
     @CurrentUser() currentUser: AuthenticatedUser,
