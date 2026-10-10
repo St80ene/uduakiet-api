@@ -38,11 +38,6 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   status?: PurchaseOrderStatus;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.0, { message: 'Total estmated cost cannot be negative.' })
-  @Type(() => Number)
-  total_estimated_cost!: number;
-
   @IsOptional()
   @IsString()
   created_by_id?: string;

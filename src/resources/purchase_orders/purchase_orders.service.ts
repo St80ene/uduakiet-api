@@ -193,6 +193,7 @@ export class PurchaseOrdersService {
         },
       });
 
+      // check for missing items and throw an error if any are not found
       if (products.length !== uniqueProductIds.length) {
         const foundProductIds = new Set(products.map((product) => product.id));
 
