@@ -11,13 +11,14 @@ Included
 - Reports
 - Dashboard
 - Audit Logs
+- Multi-Warehouse
+- Stock Movement Ledgers(Automated paperworks)
 
 Excluded
 
 - Payments
 - POS
 - Customers
-- Multi-Warehouse
 - Barcode Scanning
 - AI Forecasting
 - Accounting
