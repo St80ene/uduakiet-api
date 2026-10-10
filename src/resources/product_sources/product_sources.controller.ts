@@ -8,7 +8,6 @@ import {
   Delete,
   Query,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { ProductSourcesService } from './product_sources.service';
 import { CreateProductSourceDto } from './dto/create-product_source.dto';
@@ -16,16 +15,17 @@ import { UpdateProductSourceDto } from './dto/update-product_source.dto';
 import { ProductSourcePaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('product-sources')
-@UseGuards(RolesGuard)
 export class ProductSourcesController {
   constructor(private readonly productSourcesService: ProductSourcesService) {}
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
+  @UserRolePermissions([UserPermission.PRODUCT_SOURCE_CREATE])
   @Post()
   create(
     @CurrentUser() { businessId }: AuthenticatedUser,
@@ -43,6 +43,7 @@ export class ProductSourcesController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.PRODUCT_SOURCE_READ])
   @Get()
   findAll(
     @Query() query: ProductSourcePaginationQueryDto,
@@ -57,12 +58,14 @@ export class ProductSourcesController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.PRODUCT_SOURCE_READ])
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productSourcesService.findOne(id);
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGER])
+  @UserRolePermissions([UserPermission.PRODUCT_SOURCE_UPDATE])
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -72,6 +75,7 @@ export class ProductSourcesController {
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.PRODUCT_SOURCE_DELETE])
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.productSourcesService.remove(id);

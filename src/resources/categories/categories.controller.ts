@@ -5,9 +5,7 @@ import {
   Body,
   Patch,
   Param,
-  // Delete,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -22,10 +20,10 @@ import { ApiResponse } from '../../common/utils/response.utils';
 import { Category } from './entities/category.entity';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
-import { RolesGuard } from '../../auth/guards/roles.guard';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('categories')
-@UseGuards(RolesGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
@@ -36,6 +34,7 @@ export class CategoriesController {
     UserRole.SUPER_ADMIN,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.CATEGORY_READ])
   @Get()
   findAll(
     @CurrentUser() user: AuthenticatedUser,
@@ -56,6 +55,7 @@ export class CategoriesController {
     UserRole.STOREMAN,
     UserRole.CASHIER,
   ])
+  @UserRolePermissions([UserPermission.CATEGORY_READ])
   @Get(':id')
   findOne(
     @Param('id') id: string,
@@ -65,6 +65,7 @@ export class CategoriesController {
   }
 
   @Roles([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER])
+  @UserRolePermissions([UserPermission.CATEGORY_CREATE])
   @Post()
   create(
     @Body() createCategoryDto: CreateCategoryDto,
@@ -74,6 +75,10 @@ export class CategoriesController {
   }
 
   @Roles([UserRole.SUPER_ADMIN, UserRole.ADMIN])
+  @UserRolePermissions([
+    UserPermission.CATEGORY_UPDATE,
+    UserPermission.CATEGORY_READ,
+  ])
   @Patch(':id')
   update(
     @Param('id') id: string,

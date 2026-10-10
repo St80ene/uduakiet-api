@@ -13,7 +13,7 @@ import { IsEnum } from 'class-validator';
 import { Business } from '../../resources/business/entities/business.entity';
 
 @Entity({ name: 'roles' })
-@Unique(['name'])
+@Unique(['business_id', 'name'])
 export class Role {
   constructor(props?: Partial<Role>) {
     if (props) {
@@ -31,6 +31,9 @@ export class Role {
     default: UserRole.CASHIER,
   })
   name!: UserRole;
+
+  @Column({ type: 'boolean', default: false })
+  is_system!: boolean; // true for the four defaults
 
   @Column({ type: 'varchar', length: 36, nullable: false })
   business_id!: string;

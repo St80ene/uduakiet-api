@@ -1,176 +1,154 @@
-import { QueryRunner, Repository } from 'typeorm';
+import { QueryRunner } from 'typeorm';
 import { Permission } from '../../auth/entities/permission.entity';
 import { Role } from '../../auth/entities/role.entity';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { RolePermissions } from '../../auth/entities/role_permissions.entity';
 
-interface PermissionDefinition {
-  name: string;
-  description: string;
-}
+const User_Permission = UserPermission;
+const All_Permissions: UserPermission[] = Object.values(UserPermission);
+
+/** All permissions whose resource (the part before ':') is in the list. */
+const Permitted_Resources = (...resources: string[]): UserPermission[] =>
+  All_Permissions.filter((p) => resources.includes(p.split(':')[0]));
 
 interface RoleDefinition {
   name: UserRole;
   description: string;
-  business_id: string;
+  permissions: UserPermission[];
 }
+
+const ROLE_DEFINITIONS: RoleDefinition[] = [
+  {
+    name: UserRole.SUPER_ADMIN,
+    description: 'System or Platform Administrator',
+    permissions: All_Permissions,
+  },
+  {
+    name: UserRole.ADMIN,
+    description: 'Business Owner or General Manager',
+    // Everything except platform-level business creation
+    permissions: All_Permissions.filter(
+      (p) => p !== User_Permission.BUSINESS_CREATE,
+    ),
+  },
+  {
+    name: UserRole.MANAGER,
+    description: 'Branch or Store Manager',
+    permissions: [
+      ...Permitted_Resources(
+        'product',
+        'product_source',
+        'product_audit_log',
+        'category',
+        'supplier',
+        'stock',
+        'stock_movement',
+        'purchase',
+        'store',
+        'audit_log',
+        'sale',
+        'customer',
+        'dashboard',
+        'report',
+      ),
+      User_Permission.USER_READ,
+      User_Permission.ROLE_READ,
+      User_Permission.BUSINESS_SETTINGS_READ,
+    ],
+  },
+  {
+    name: UserRole.STOREMAN,
+    description: 'Warehouse / Inventory Handler',
+    permissions: [
+      User_Permission.PRODUCT_READ,
+      User_Permission.PRODUCT_CREATE,
+      User_Permission.PRODUCT_UPDATE,
+      User_Permission.PRODUCT_SOURCE_READ,
+      User_Permission.CATEGORY_READ,
+      User_Permission.STOCK_READ,
+      User_Permission.STOCK_ADJUST,
+      User_Permission.STOCK_TRANSFER,
+      User_Permission.STOCK_MOVEMENT_READ,
+      User_Permission.STORE_READ,
+      User_Permission.PURCHASE_READ,
+      User_Permission.PURCHASE_CREATE,
+      User_Permission.SUPPLIER_READ,
+      User_Permission.DASHBOARD_VIEW,
+      User_Permission.DASHBOARD_INVENTORY_VIEW,
+      User_Permission.DASHBOARD_WAREHOUSE_VIEW,
+      User_Permission.REPORT_VIEW,
+      User_Permission.REPORT_INVENTORY_VIEW,
+    ],
+  },
+  {
+    name: UserRole.CASHIER,
+    description: 'Sales Point Operator',
+    permissions: [
+      User_Permission.PRODUCT_READ,
+      User_Permission.CATEGORY_READ,
+      User_Permission.STOCK_READ,
+      User_Permission.SALE_READ,
+      User_Permission.SALE_CREATE,
+      User_Permission.CUSTOMER_READ,
+      User_Permission.CUSTOMER_CREATE,
+    ],
+  },
+];
+
+const describe = (name: string): string => {
+  const [resource, action] = name.split(':');
+  return `${action.replace(/_/g, ' ')} ${resource.replace(/_/g, ' ')}`;
+};
 
 export async function seedGlobalPermissionsAndRoles(
   queryRunner: QueryRunner,
   businessId: string,
-  modules: string[],
 ) {
-  const permissionRepository: Repository<Permission> =
-    queryRunner.manager.getRepository(Permission);
-  const roleRepository: Repository<Role> =
-    queryRunner.manager.getRepository(Role);
+  const permissionRepository = queryRunner.manager.getRepository(Permission);
+  const roleRepository = queryRunner.manager.getRepository(Role);
+  const rolePermissionRepository =
+    queryRunner.manager.getRepository(RolePermissions);
 
-  const actions = ['create', 'read', 'update', 'delete'];
-  const permissionDefinitions: PermissionDefinition[] = modules.flatMap(
-    (module) =>
-      actions.map((action) => ({
-        name: `${module}.${action}`,
-        description: `${action} ${module}`,
-      })),
+  // 1. Permissions are global: create only the ones that don't exist yet,
+  //    so seeding a second business doesn't hit the unique constraint on name.
+  const existing = await permissionRepository.find();
+  const byName = new Map(existing.map((p) => [p.name, p]));
+
+  const missing = All_Permissions.filter((name) => !byName.has(name)).map(
+    (name) =>
+      permissionRepository.create({ name, description: describe(name) }),
   );
-
-  permissionDefinitions.push(
-    { name: 'purchase_orders.approve', description: 'Approve purchase orders' },
-    { name: 'stocks.adjust', description: 'Adjust stock quantities' },
-  );
-
-  const permissions: Permission[] = [];
-  for (const definition of permissionDefinitions) {
-    const permission = permissionRepository.create(definition);
-    permissions.push(await permissionRepository.save(permission));
+  if (missing.length) {
+    const saved = await permissionRepository.save(missing);
+    saved.forEach((p) => byName.set(p.name, p));
   }
 
-  const roleDefinitions: RoleDefinition[] = [
-    {
-      name: UserRole.SUPER_ADMIN,
-      description: 'System or Platform Administrator',
-      business_id: businessId,
-    },
-    {
-      name: UserRole.ADMIN,
-      description: 'Business Owner or General Manager',
-      business_id: businessId,
-    },
-    {
-      name: UserRole.MANAGER,
-      description: 'Branch or Store Manager',
-      business_id: businessId,
-    },
-    {
-      name: UserRole.STOREMAN,
-      description: 'Warehouse / Inventory Handler',
-      business_id: businessId,
-    },
-    {
-      name: UserRole.CASHIER,
-      description: 'Sales Point Operator',
-      business_id: businessId,
-    },
-  ];
-
+  // 2. Roles for this business, each wired to its default permissions
+  //    through the RolePermissions junction entity.
   const roles: Role[] = [];
-  for (const definition of roleDefinitions) {
-    const role = roleRepository.create(definition);
-    roles.push(await roleRepository.save(role));
+  for (const definition of ROLE_DEFINITIONS) {
+    const role = await roleRepository.save(
+      roleRepository.create({
+        name: definition.name,
+        description: definition.description,
+        business_id: businessId,
+        is_system: true,
+      }),
+    );
+    roles.push(role);
+
+    const rolePermissions = [...new Set(definition.permissions)].map((name) =>
+      rolePermissionRepository.create({
+        role_id: role.id,
+        permission_id: byName.get(name)!.id,
+      }),
+    );
+
+    if (rolePermissions.length) {
+      await rolePermissionRepository.save(rolePermissions);
+    }
   }
-
-  // 1. Existing Super Admin assignment (Gets everything)
-  const superAdminRole = roles.find((r) => r.name === UserRole.SUPER_ADMIN)!;
-  await queryRunner.manager
-    .createQueryBuilder()
-    .insert()
-    .into('role_permissions')
-    .values(
-      permissions.map((p) => ({
-        role_id: superAdminRole.id,
-        permission_id: p.id,
-      })),
-    )
-    .execute();
-
-  // 2. Existing Admin assignment (Gets almost everything except core business management)
-  const adminRole = roles.find((r) => r.name === UserRole.ADMIN)!;
-  const adminPermissions = permissions.filter(
-    (p) => !p.name.startsWith('businesses.'),
-  );
-  await queryRunner.manager
-    .createQueryBuilder()
-    .insert()
-    .into('role_permissions')
-    .values(
-      adminPermissions.map((p) => ({
-        role_id: adminRole.id,
-        permission_id: p.id,
-      })),
-    )
-    .execute();
-
-  // =========================================================================
-  // 3. MANAGER PERMISSIONS (Branch/Store Oversight, Stock, Procurement)
-  // =========================================================================
-  const managerRole = roles.find((r) => r.name === UserRole.MANAGER)!;
-  const managerAllowedModules = [
-    'products',
-    'categories',
-    'suppliers',
-    'stocks',
-    'stock_movements',
-    'purchase_orders',
-    'stores',
-    'audit_logs',
-    'reports',
-  ];
-
-  const managerPermissions = permissions.filter(
-    (p) =>
-      managerAllowedModules.some((mod) => p.name.startsWith(`${mod}.`)) ||
-      p.name === 'purchase_orders.approve' ||
-      p.name === 'stocks.adjust',
-  );
-
-  await queryRunner.manager
-    .createQueryBuilder()
-    .insert()
-    .into('role_permissions')
-    .values(
-      managerPermissions.map((p) => ({
-        role_id: managerRole.id,
-        permission_id: p.id,
-      })),
-    )
-    .execute();
-
-  // =========================================================================
-  // 4. CASHIER PERMISSIONS (Point of Sale, Read Products/Categories, Profile)
-  // =========================================================================
-  const cashierRole = roles.find((r) => r.name === UserRole.CASHIER)!;
-  const cashierAllowedPermissions = [
-    'products.read',
-    'categories.read',
-    'stocks.read',
-    'profile.read',
-    'profile.update',
-  ];
-
-  const cashierPermissions = permissions.filter((p) =>
-    cashierAllowedPermissions.includes(p.name),
-  );
-
-  await queryRunner.manager
-    .createQueryBuilder()
-    .insert()
-    .into('role_permissions')
-    .values(
-      cashierPermissions.map((p) => ({
-        role_id: cashierRole.id,
-        permission_id: p.id,
-      })),
-    )
-    .execute();
 
   return roles;
 }

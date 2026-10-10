@@ -7,7 +7,6 @@ import {
   Param,
   Delete,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
 import { StoresService } from './stores.service';
@@ -24,16 +23,17 @@ import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user
 
 import { ApiResponse } from '../../common/utils/response.utils';
 import { Store } from './entities/store.entity';
-import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { UserPermission } from '../../common/enum/user_permission.enum';
+import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 
 @Controller('stores')
-@UseGuards(RolesGuard)
 export class StoresController {
   constructor(private readonly storesService: StoresService) {}
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.STORE_READ])
   @Get()
   findAll(
     @CurrentUser() { businessId }: AuthenticatedUser,
@@ -53,6 +53,7 @@ export class StoresController {
     UserRole.MANAGER,
     UserRole.STOREMAN,
   ])
+  @UserRolePermissions([UserPermission.STORE_READ])
   @Get(':id')
   findOne(
     @Param('id') id: string,
@@ -62,6 +63,7 @@ export class StoresController {
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.STORE_CREATE])
   @Post()
   create(
     @Body() createStoreDto: CreateStoreDto,
@@ -71,6 +73,7 @@ export class StoresController {
   }
 
   @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.STORE_UPDATE])
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -81,6 +84,7 @@ export class StoresController {
   }
 
   @Roles([UserRole.SUPER_ADMIN])
+  @UserRolePermissions([UserPermission.STORE_DELETE])
   @Delete(':id')
   remove(
     @Param('id') id: string,
