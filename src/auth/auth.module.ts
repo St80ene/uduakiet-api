@@ -50,6 +50,6 @@ import { RolePermissionGuard } from './guards/role_permission.guard';
       useClass: RolePermissionGuard,
     },
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtService, JwtStrategy, ConfigService],
 })
 export class AuthModule {}
