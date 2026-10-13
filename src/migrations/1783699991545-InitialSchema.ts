@@ -1721,6 +1721,163 @@ export class InitialSchema1783699991545 implements MigrationInterface {
         columnNames: ['store_id', 'created_at'],
       }),
     ]);
+
+    await queryRunner.createTable(
+      new Table({
+        name: 'outbox_events',
+        columns: [
+          {
+            name: 'id',
+            type: 'varchar',
+            length: '36',
+            isPrimary: true,
+          },
+          {
+            name: 'event_type',
+            type: 'varchar',
+            length: '100',
+          },
+          {
+            name: 'aggregate_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'aggregate_type',
+            type: 'varchar',
+            length: '100',
+          },
+          {
+            name: 'business_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'store_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'payload',
+            type: 'simple-json',
+            isNullable: true,
+          },
+          {
+            name: 'status',
+            type: 'varchar',
+            length: '20',
+            default: "'PENDING'",
+          },
+          {
+            name: 'attempts',
+            type: 'int',
+            default: 0,
+          },
+          {
+            name: 'available_at',
+            type: 'datetime',
+          },
+          {
+            name: 'processed_at',
+            type: 'datetime',
+            isNullable: true,
+          },
+          {
+            name: 'last_error',
+            type: 'text',
+            isNullable: true,
+          },
+          {
+            name: 'created_at',
+            type: 'datetime',
+            default: 'CURRENT_TIMESTAMP',
+          },
+        ],
+        indices: [
+          {
+            name: 'IDX_outbox_events_status_available_at',
+            columnNames: ['status', 'available_at'],
+          },
+        ],
+      }),
+      true,
+    );
+
+    await queryRunner.createTable(
+      new Table({
+        name: 'notifications',
+        columns: [
+          {
+            name: 'id',
+            type: 'varchar',
+            length: '36',
+            isPrimary: true,
+          },
+          {
+            name: 'business_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'store_id',
+            type: 'varchar',
+            length: '36',
+            isNullable: true,
+          },
+          {
+            name: 'recipient_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'source_event_id',
+            type: 'varchar',
+            length: '36',
+          },
+          {
+            name: 'type',
+            type: 'varchar',
+            length: '100',
+          },
+          {
+            name: 'title',
+            type: 'varchar',
+            length: '100',
+            default: "''",
+          },
+          {
+            name: 'message',
+            type: 'varchar',
+            length: '400',
+            default: "''",
+          },
+          {
+            name: 'is_read',
+            type: 'boolean',
+            default: false,
+          },
+          {
+            name: 'data',
+            type: 'simple-json',
+            isNullable: true,
+            default: 'NULL',
+          },
+          {
+            name: 'created_at',
+            type: 'datetime',
+            default: 'CURRENT_TIMESTAMP',
+          },
+        ],
+        indices: [
+          {
+            name: 'UQ_notifications_source_event_recipient',
+            columnNames: ['source_event_id', 'recipient_id'],
+            isUnique: true,
+          },
+        ],
+      }),
+      true,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

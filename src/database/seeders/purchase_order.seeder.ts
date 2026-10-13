@@ -26,10 +26,6 @@ export async function seedPurchaseOrders(
   const poStatuses: PurchaseOrderStatus[] = Object.values(PurchaseOrderStatus);
   const poCountPerBusiness = currentScale.purchaseOrderCount ?? 10;
 
-  console.log(
-    `[Seeding] 📦 Starting purchase order generation for "${bizBlueprint.display_name}" (Target: ${poCountPerBusiness} POs)...`,
-  );
-
   // Filter all product sources belonging to this business upfront
   const businessSources = productSourcesSeedData.filter(
     (src) => src.business_id === businessId,
@@ -41,8 +37,6 @@ export async function seedPurchaseOrders(
     );
     return;
   }
-
-  let successCount = 0;
 
   for (let i = 0; i < poCountPerBusiness; i++) {
     const poId = randomUUID();
@@ -78,10 +72,6 @@ export async function seedPurchaseOrders(
     const chosenSources = faker.helpers.arrayElements(
       validSourcesForSupplier,
       sampleSize,
-    );
-
-    console.log(
-      `[Seeding] 🔨 [${i + 1}/${poCountPerBusiness}] Creating ${poNumber} for "${bizBlueprint.display_name}" -> Supplier: "${supplier.name}" | Status: ${status} | Items: ${chosenSources.length}`,
     );
 
     let totalEstimatedCost = 0;
@@ -178,11 +168,5 @@ export async function seedPurchaseOrders(
         reason: `Generated purchase order ${poNumber} with status ${status}`,
       },
     });
-
-    successCount++;
   }
-
-  console.log(
-    `[Seeding] ✅ Finished purchase orders for "${bizBlueprint.display_name}". Successfully seeded ${successCount}/${poCountPerBusiness} POs.`,
-  );
 }

@@ -23,6 +23,9 @@ import { CategoriesModule } from './resources/categories/categories.module';
 import { StoresModule } from './resources/stores/stores.module';
 import { CloudinaryModule } from './common/utils/helpers/cloudinary/cloudinary.module';
 import { StockMovementsModule } from './resources/stock_movements/stock_movements.module';
+import { OutboxModule } from './resources/outbox/outbox.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { NotificationsModule } from './resources/notifications/notifications.module';
 
 const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
 
@@ -55,6 +58,7 @@ const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
     PurchaseOrdersModule,
     ProductSourcesModule,
     SuppliersModule,
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     AuditLogsModule,
     AuthModule,
@@ -63,6 +67,8 @@ const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
     CategoriesModule,
     StoresModule,
     StockMovementsModule,
+    OutboxModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

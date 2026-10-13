@@ -103,10 +103,6 @@ export async function seedTenantUsers(
       }),
     );
 
-    console.log(
-      `Seeded user: ${userEmail} with role: ${uConfig.role.name} for business: ${bizBlueprint.display_name}`,
-    );
-
     tenantUsers.push({ id: savedUser.id, email: userEmail });
   }
 

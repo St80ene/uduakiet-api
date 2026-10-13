@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { LowStockEvent, Stock } from './entities/stock.entity';
+import { Stock } from './entities/stock.entity';
 
 import { DashboardCard } from '../dashboard/interfaces/initial_interface';
 
@@ -32,6 +32,12 @@ import {
 import { Product } from '../products/entities/product.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { ProductSource } from '../product_sources/entities/product_source.entity';
+import {
+  OutboxEvent,
+  OutboxEventAggregateType,
+  OutboxEventStatus,
+  OutboxEventType,
+} from '../outbox/entities/outbox_events.entity';
 
 @Injectable()
 export class StocksService {
@@ -154,7 +160,6 @@ export class StocksService {
     await queryRunner.startTransaction();
     const manager = queryRunner.manager;
 
-    let lowStockEvent: LowStockEvent | null = null;
     let response: ApiResponse<Stock>;
 
     try {
@@ -243,20 +248,42 @@ export class StocksService {
       /**
        * 5. DETECT REORDER-LEVEL CROSSING (reached or passed, downward only)
        */
+      const reorderLevel = product.default_reorder_point ?? 5;
+
       const crossedReorderLevel =
         direction === StockMovementDirection.OUT &&
-        quantity_before > (product.default_reorder_point ?? 5) &&
-        physical_quantity <= (product.default_reorder_point ?? 5);
+        quantity_before > reorderLevel &&
+        physical_quantity <= reorderLevel;
 
       if (crossedReorderLevel) {
-        lowStockEvent = {
+        const payload = {
           business_id: businessId,
           store_id: stock.store_id,
           product_id: product.id,
           current_quantity: physical_quantity,
-          reorder_level: product.default_reorder_point ?? 5,
+          reorder_level: reorderLevel,
           is_out_of_stock: physical_quantity === 0,
         };
+
+        // PUBLISH EVENT TO OUTBOX (for async processing by event worker)
+        // This uses the SAME transaction manager as the stock update
+        // and stock movement insert.
+        await manager.save(
+          OutboxEvent,
+          manager.create(OutboxEvent, {
+            event_type: OutboxEventType.LOWSTOCK_DETECTED,
+            aggregate_id: stock.id,
+            aggregate_type: OutboxEventAggregateType.STOCKS,
+            business_id: businessId,
+            store_id: stock.store_id,
+            payload,
+            status: OutboxEventStatus.PENDING,
+            attempts: 0,
+            available_at: new Date(),
+            processed_at: null,
+            last_error: null,
+          }),
+        );
       }
 
       await queryRunner.commitTransaction();
@@ -272,11 +299,6 @@ export class StocksService {
       throw error;
     } finally {
       await queryRunner.release();
-    }
-
-    // 6. PUBLISH AFTER COMMIT
-    if (lowStockEvent) {
-      // this.eventEmitter.emit('stock.low', lowStockEvent);
     }
 
     return response;
