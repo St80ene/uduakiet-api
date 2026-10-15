@@ -11,6 +11,13 @@ import { Category } from '../../resources/categories/entities/category.entity';
 import { Supplier } from '../../resources/suppliers/entities/supplier.entity';
 import { ProductSource } from '../../resources/product_sources/entities/product_source.entity';
 
+interface ProductNameCandidate {
+  template: ProductCatalogTemplate;
+  brand?: string;
+  variant?: string;
+  name: string;
+}
+
 export async function seedCategoryAndSuppliers(
   queryRunner: QueryRunner,
   businessId: string,
@@ -28,9 +35,10 @@ export async function seedCategoryAndSuppliers(
     bizBlueprint.catalogType in PRODUCT_CATALOGS
       ? bizBlueprint.catalogType
       : 'SUPERMARKET';
+
   const productCatalog = PRODUCT_CATALOGS[catalogKey];
 
-  if (!productCatalog || productCatalog.length === 0) {
+  if (!productCatalog?.length) {
     throw new Error(
       `No product catalog found for business catalog type: ${bizBlueprint.catalogType}`,
     );
@@ -40,18 +48,27 @@ export async function seedCategoryAndSuppliers(
   // 1. SEED CATEGORIES
   // ============================================================
   const categorySeedData: Partial<Category>[] = [];
+
   const catalogCategoryNames = [
     ...new Set(productCatalog.map((item) => item.category)),
   ];
 
-  for (let c = 0; c < counts.categoryCount; c++) {
+  // Ensure every catalog category exists so products do not
+  // accidentally fall back to an unrelated category.
+  const totalCategories = Math.max(
+    counts.categoryCount,
+    catalogCategoryNames.length,
+  );
+
+  for (let c = 0; c < totalCategories; c++) {
     const baseCategory = catalogCategoryNames[c % catalogCategoryNames.length];
+
     const categoryName =
       c < catalogCategoryNames.length
         ? baseCategory
         : `${baseCategory} ${Math.floor(c / catalogCategoryNames.length) + 1}`;
 
-    const category = {
+    const category: Partial<Category> = {
       id: randomUUID(),
       name: categoryName,
       description: `${categoryName} products stocked by ${bizBlueprint.display_name}.`,
@@ -75,7 +92,8 @@ export async function seedCategoryAndSuppliers(
 
   for (let sup = 0; sup < counts.supplierCount; sup++) {
     const uniqueId = faker.string.alphanumeric(5).toUpperCase();
-    const supplier = {
+
+    const supplier: Partial<Supplier> = {
       id: randomUUID(),
       name: `${faker.company.name()} (${bizBlueprint.prefix}-${uniqueId})`,
       phone_number: `+234${faker.string.numeric(10)}`,
@@ -101,22 +119,82 @@ export async function seedCategoryAndSuppliers(
   }
 
   // ============================================================
-  // 3. SEED PRODUCTS
+  // 3. BUILD PRODUCT NAME COMBINATIONS
+  // ============================================================
+  // Generate combinations from the catalog instead of randomly
+  // choosing a template on every iteration. This makes it possible
+  // to use different products, brands, and package variations.
+  const productNameMap = new Map<string, ProductNameCandidate>();
+
+  for (const template of productCatalog) {
+    const brands = template.brands?.length ? template.brands : [''];
+
+    const variants = template.variants?.length ? template.variants : [''];
+
+    for (const brand of brands) {
+      for (const variant of variants) {
+        const name = [brand, template.name, variant].filter(Boolean).join(' ');
+
+        const normalizedName = name.trim().toLowerCase();
+
+        if (!productNameMap.has(normalizedName)) {
+          productNameMap.set(normalizedName, {
+            template,
+            brand: brand || undefined,
+            variant: variant || undefined,
+            name,
+          });
+        }
+      }
+    }
+  }
+
+  const productNameCandidates = faker.helpers.shuffle(
+    Array.from(productNameMap.values()),
+  );
+
+  if (productNameCandidates.length === 0 && counts.productCount > 0) {
+    throw new Error(
+      `No product name combinations available for ${bizBlueprint.display_name}.`,
+    );
+  }
+
+  // ============================================================
+  // 4. SEED PRODUCTS
   // ============================================================
   const productSeedData: Partial<Product>[] = [];
 
+  // Track generated SKUs to avoid collisions within this seed run.
+  const generatedSkus = new Set<string>();
+
   for (let prodIndex = 0; prodIndex < counts.productCount; prodIndex++) {
-    const template: ProductCatalogTemplate =
-      faker.helpers.arrayElement(productCatalog);
+    // Cycle through every available combination before reusing one.
+    // If more products are requested than the catalog can uniquely
+    // name, add a numbered variation to preserve name uniqueness.
+    const combinationIndex = prodIndex % productNameCandidates.length;
 
-    const category =
-      categorySeedData.find((cat) => cat.name === template.category) ??
-      categorySeedData[0]; // fallback to first category if unmatched
+    const variationNumber = Math.floor(
+      prodIndex / productNameCandidates.length,
+    );
 
-    const brand = template.brands?.length
-      ? faker.helpers.arrayElement(template.brands)
-      : undefined;
-    const productName = [brand, template.name].filter(Boolean).join(' ');
+    const candidate = productNameCandidates[combinationIndex];
+    const template = candidate.template;
+
+    const productName =
+      variationNumber === 0
+        ? candidate.name
+        : `${candidate.name} Variant ${variationNumber + 1}`;
+
+    const category = categorySeedData.find(
+      (cat) => cat.name === template.category,
+    );
+
+    if (!category?.id) {
+      throw new Error(
+        `Category "${template.category}" was not seeded for ${bizBlueprint.display_name}.`,
+      );
+    }
+
     const description = `${productName} stocked by ${bizBlueprint.display_name}.`;
 
     const sellingPrice = faker.number.float({
@@ -126,6 +204,7 @@ export async function seedCategoryAndSuppliers(
     });
 
     const imageUrl = faker.helpers.arrayElement(template.imageUrls);
+
     const images = [
       {
         url: imageUrl,
@@ -133,10 +212,20 @@ export async function seedCategoryAndSuppliers(
       },
     ];
 
-    const sku = `${bizBlueprint.prefix}-${faker.string.alphanumeric(6).toUpperCase()}`;
-    const defaultReorderPoint = faker.number.int({ min: 5, max: 50 });
+    let sku: string;
 
-    const prod = {
+    do {
+      sku = `${bizBlueprint.prefix}-${faker.string.alphanumeric(6).toUpperCase()}`;
+    } while (generatedSkus.has(sku));
+
+    generatedSkus.add(sku);
+
+    const defaultReorderPoint = faker.number.int({
+      min: 5,
+      max: 50,
+    });
+
+    const prod: Partial<Product> = {
       id: randomUUID(),
       name: productName,
       description,
@@ -148,7 +237,7 @@ export async function seedCategoryAndSuppliers(
       uom_base_name: template.uomBaseName,
       uom_display_name: template.uomDisplayName,
       status: ProductStatus.ACTIVE,
-      category_id: category.id!,
+      category_id: category.id,
       business_id: businessId,
     };
 
@@ -182,12 +271,14 @@ export async function seedCategoryAndSuppliers(
   }
 
   // ============================================================
-  // 4. SEED PRODUCT SOURCES
+  // 5. SEED PRODUCT SOURCES
   // ============================================================
   const productSourcesSeedData: Partial<ProductSource>[] = [];
 
   for (const prod of productSeedData) {
-    if (!prod.id || !prod.selling_price) continue;
+    if (!prod.id || prod.selling_price == null) {
+      continue;
+    }
 
     const targetedSuppliers =
       supplierSeedData.length > 0
@@ -198,24 +289,34 @@ export async function seedCategoryAndSuppliers(
         : [];
 
     for (const supplier of targetedSuppliers) {
-      if (!supplier.id) continue;
+      if (!supplier.id) {
+        continue;
+      }
 
+      // Estimate a supplier cost below the retail selling price.
       const costMarkupFactor = faker.number.float({
         min: 0.65,
         max: 0.85,
         fractionDigits: 2,
       });
+
       const calculatedWholesaleCost = Number(
         (prod.selling_price * costMarkupFactor).toFixed(2),
       );
+
       const vendorCode = (supplier.name ?? 'SUP')
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '')
         .substring(0, 3);
-      const supplierSku = `${vendorCode}-${faker.string.numeric(4)}`;
-      const estimatedLeadTime = faker.number.int({ min: 2, max: 10 });
 
-      const sourceRecord = {
+      const supplierSku = `${vendorCode}-${faker.string.numeric(4)}`;
+
+      const estimatedLeadTime = faker.number.int({
+        min: 2,
+        max: 10,
+      });
+
+      const sourceRecord: Partial<ProductSource> = {
         id: randomUUID(),
         product_id: prod.id,
         business_id: businessId,

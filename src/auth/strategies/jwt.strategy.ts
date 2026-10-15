@@ -27,13 +27,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('role.rolePermissions', 'rolePermissions')
+      .leftJoinAndSelect('rolePermissions.permission', 'permission')
       .select([
         'user.id',
         'user.company_email',
         'user.role_id',
         'user.business_id',
         'user.store_id',
+
+        'role.id',
         'role.name',
+
+        'rolePermissions.id',
+
+        'permission.id',
+        'permission.name',
       ])
       .where('user.id = :userId', {
         userId: payload.sub,
@@ -51,7 +60,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       roleId: user.role_id,
       businessId: user.business_id,
       role: user.role,
-      ...(user.store_id && { storeId: user?.store_id }),
+      ...(user.store_id && { storeId: user.store_id }),
     };
   }
 }
