@@ -399,9 +399,9 @@ export class ProductsService {
         {
           action: AuditLogAction.UPDATE,
           entity: AuditLogEntity.PRODUCT,
-          entityId: updatedProduct.id,
-          oldValue: oldProductDetails,
-          newValue: newProductDetails,
+          entity_id: updatedProduct.id,
+          old_value: oldProductDetails,
+          new_value: newProductDetails,
           metadata: {
             productName: updatedProduct.name,
             businessId: user.businessId,
@@ -481,9 +481,9 @@ export class ProductsService {
       await this.auditLogService.create({
         action: AuditLogAction.DELETE,
         entity: AuditLogEntity.PRODUCT,
-        entityId: product.id,
-        oldValue: oldProductDetails,
-        newValue: deleted,
+        entity_id: product.id,
+        old_value: oldProductDetails,
+        new_value: deleted,
         metadata: {
           productName: product.name,
           businessId: user.businessId,

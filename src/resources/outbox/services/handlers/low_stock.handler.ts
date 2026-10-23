@@ -24,6 +24,7 @@ export class LowStockHandler {
 
   @OnEvent(OutboxEventType.LOWSTOCK_DETECTED, { async: true })
   async handle(payload: LowStockEvent): Promise<void> {
+    console.log(`${OutboxEventType.LOWSTOCK_DETECTED} happening`);
     const queryRunner = this.data_source.createQueryRunner();
 
     // Keep each recipient paired with their persisted notification.
@@ -53,9 +54,9 @@ export class LowStockHandler {
         .where('user.business_id = :business_id', { business_id })
         .andWhere('user.deleted_at IS NULL')
         .andWhere(
-          '(role.name = :adminRole OR (role.name = :managerRole AND user.store_id = :store_id))',
+          '(role.name = :storeMan OR (role.name = :managerRole AND user.store_id = :store_id))',
           {
-            adminRole: UserRole.ADMIN,
+            storeMan: UserRole.STOREMAN,
             managerRole: UserRole.MANAGER,
             store_id,
           },
@@ -75,6 +76,7 @@ export class LowStockHandler {
       const notificationPayload: CreateNotificationDto = {
         business_id,
         source_event_id: event_id,
+        // store_id: '',
         type: OutboxEventType.LOWSTOCK_DETECTED,
         title: is_out_of_stock ? 'Out of Stock Alert' : 'Low Stock Alert',
         message: is_out_of_stock
@@ -104,6 +106,8 @@ export class LowStockHandler {
       // Notify every recipient's active connections.
       for (const { recipientId, notification } of notificationsToEmit) {
         this.notificationsGateway.emitToUser(recipientId, notification);
+
+        console.log(`notification emitted to user `);
       }
 
       this.logger.log(

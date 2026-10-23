@@ -58,7 +58,6 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: UserRole.ADMIN,
     description: 'Business Owner or General Manager',
-    // Everything except platform-level business creation
     permissions: All_Permissions.filter((p) => p !== BUSINESS_CREATE),
   },
   {
@@ -148,43 +147,62 @@ export async function seedGlobalPermissionsAndRoles(
   const rolePermissionRepository =
     queryRunner.manager.getRepository(RolePermissions);
 
-  // 1. Permissions are global: create only the ones that don't exist yet,
-  //    so seeding a second business doesn't hit the unique constraint on name.
-  const existing = await permissionRepository.find();
-  const byName = new Map(existing.map((p) => [p.name, p]));
+  // 1. Permissions are global: create only the ones that don't exist yet
+  const existingPermissions = await permissionRepository.find();
+  const byName = new Map(existingPermissions.map((p) => [p.name, p]));
 
-  const missing = All_Permissions.filter((name) => !byName.has(name)).map(
-    (name) =>
-      permissionRepository.create({ name, description: describe(name) }),
+  const missingPermissions = All_Permissions.filter(
+    (name) => !byName.has(name),
+  ).map((name) =>
+    permissionRepository.create({ name, description: describe(name) }),
   );
-  if (missing.length) {
-    const saved = await permissionRepository.save(missing);
+  if (missingPermissions.length) {
+    const saved = await permissionRepository.save(missingPermissions);
     saved.forEach((p) => byName.set(p.name, p));
   }
 
-  // 2. Roles for this business, each wired to its default permissions
-  //    through the RolePermissions junction entity.
+  // 2. Roles for this business: check if role exists for this business before saving
   const roles: Role[] = [];
   for (const definition of ROLE_DEFINITIONS) {
-    const role = await roleRepository.save(
-      roleRepository.create({
+    let role = await roleRepository.findOne({
+      where: {
         name: definition.name,
-        description: definition.description,
         business_id: businessId,
-        is_system: true,
-      }),
-    );
+      },
+    });
+
+    if (!role) {
+      role = await roleRepository.save(
+        roleRepository.create({
+          name: definition.name,
+          description: definition.description,
+          business_id: businessId,
+          is_system: true,
+        }),
+      );
+    }
     roles.push(role);
 
-    const rolePermissions = [...new Set(definition.permissions)].map((name) =>
-      rolePermissionRepository.create({
-        role_id: role.id,
-        permission_id: byName.get(name)!.id,
-      }),
+    // 3. Sync permissions for this role safely to avoid junction table unique constraint violations
+    const existingRolePermissions = await rolePermissionRepository.find({
+      where: { role_id: role.id },
+    });
+    const existingPermissionIds = new Set(
+      existingRolePermissions.map((rp) => rp.permission_id),
     );
 
-    if (rolePermissions.length) {
-      await rolePermissionRepository.save(rolePermissions);
+    const missingRolePermissions = [...new Set(definition.permissions)]
+      .map((name) => byName.get(name)!.id)
+      .filter((permissionId) => !existingPermissionIds.has(permissionId)) // Only add missing junctions
+      .map((permissionId) =>
+        rolePermissionRepository.create({
+          role_id: role.id,
+          permission_id: permissionId,
+        }),
+      );
+
+    if (missingRolePermissions.length) {
+      await rolePermissionRepository.save(missingRolePermissions);
     }
   }
 

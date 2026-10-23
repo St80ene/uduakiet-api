@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  Brackets,
   DataSource,
   EntityManager,
   QueryFailedError,
@@ -8,6 +13,9 @@ import {
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { Notifications } from './entities/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { NotificationPaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { successResponse } from '../../common/utils/response.utils';
+import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
 export interface INotificationCriteria {
   source_event_id: string;
@@ -72,32 +80,87 @@ export class NotificationsService {
 
   async findAllForRecipient(
     recipientId: string,
-    page = 1,
-    limit = 20,
-  ): Promise<{
-    data: Notifications[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const safePage = Math.max(1, page);
-    const safeLimit = Math.min(100, Math.max(1, limit));
+    paginationQuery: NotificationPaginationQueryDto,
+    user: AuthenticatedUser,
+  ) {
+    const { limit = 10, cursor, isRead, search } = paginationQuery;
 
-    const [data, total] = await this.data_source
-      .getRepository(Notifications)
-      .findAndCount({
-        where: { recipient_id: recipientId },
-        order: { created_at: 'DESC' },
-        skip: (safePage - 1) * safeLimit,
-        take: safeLimit,
+    const queryBuilder = this.notificationsRepository
+      .createQueryBuilder('notification')
+      .where('notification.business_id = :businessId', {
+        businessId: user.businessId,
+      })
+      .andWhere('notification.recipient_id = :recipientId', {
+        recipientId,
       });
 
-    return {
-      data,
-      total,
-      page: safePage,
-      limit: safeLimit,
-    };
+    // Apply the read/unread filter only when explicitly provided.
+    if (isRead !== undefined) {
+      queryBuilder.andWhere('notification.is_read = :isRead', {
+        isRead,
+      });
+    }
+
+    // Preserve the search functionality inherited from the base DTO.
+    if (search) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('notification.title LIKE :search', {
+            search: `%${search}%`,
+          }).orWhere('notification.message LIKE :search', {
+            search: `%${search}%`,
+          });
+        }),
+      );
+    }
+
+    // Continue fetching records strictly after the previous page.
+    if (cursor) {
+      const decodedCursor = this.decodeNotificationCursor(cursor);
+
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('notification.created_at < :cursorCreatedAt', {
+            cursorCreatedAt: decodedCursor.createdAt,
+          }).orWhere(
+            `notification.created_at = :cursorCreatedAt
+           AND notification.id < :cursorId`,
+            {
+              cursorCreatedAt: decodedCursor.createdAt,
+              cursorId: decodedCursor.id,
+            },
+          );
+        }),
+      );
+    }
+
+    // Use a unique tie-breaker to make the ordering deterministic.
+    queryBuilder
+      .orderBy('notification.created_at', 'DESC')
+      .addOrderBy('notification.id', 'DESC')
+      .take(limit + 1);
+
+    const results = await queryBuilder.getMany();
+
+    // Fetching one extra record tells us whether another page exists.
+    const hasNextPage = results.length > limit;
+    const notifications = results.slice(0, limit);
+
+    const lastNotification = notifications.at(-1);
+
+    const nextCursor =
+      hasNextPage && lastNotification
+        ? this.encodeNotificationCursor(lastNotification)
+        : null;
+
+    return successResponse('Notifications retrieved successfully', {
+      notifications,
+      meta: {
+        limit,
+        nextCursor,
+        hasNextPage,
+      },
+    });
   }
 
   public async getUnreadCount(recipientId: string): Promise<number> {
@@ -163,5 +226,47 @@ export class NotificationsService {
       driverError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
       driverError.errno === 1062
     );
+  }
+
+  private encodeNotificationCursor(notification: Notifications): string {
+    const cursor = {
+      createdAt: notification.created_at.toISOString(),
+      id: notification.id,
+    };
+
+    return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+  }
+
+  private decodeNotificationCursor(cursor: string): {
+    createdAt: string;
+    id: string;
+  } {
+    try {
+      const decoded: unknown = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      );
+
+      if (typeof decoded !== 'object' || decoded === null) {
+        throw new Error('Invalid cursor payload');
+      }
+
+      const payload = decoded as Record<string, unknown>;
+
+      if (
+        typeof payload.createdAt !== 'string' ||
+        Number.isNaN(Date.parse(payload.createdAt)) ||
+        typeof payload.id !== 'string' ||
+        payload.id.length === 0
+      ) {
+        throw new Error('Invalid cursor fields');
+      }
+
+      return {
+        createdAt: new Date(payload.createdAt).toISOString(),
+        id: payload.id,
+      };
+    } catch {
+      throw new BadRequestException('Invalid notification cursor');
+    }
   }
 }

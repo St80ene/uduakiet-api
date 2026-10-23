@@ -28,7 +28,7 @@ export class Notifications extends BaseEntity {
   store_id?: string;
 
   @Column({ type: 'varchar', length: 36 })
-  source_event_id!: string;
+  source_event_id!: string; // Originator
 
   @Column({
     type: 'varchar',
@@ -56,7 +56,7 @@ export class Notifications extends BaseEntity {
   })
   is_read?: boolean;
 
-  @Column({ type: 'simple-json', default: null })
+  @Column({ type: 'json', default: null })
   data?: Record<string, any> | null;
 
   @CreateDateColumn({

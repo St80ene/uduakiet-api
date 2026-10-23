@@ -6,6 +6,7 @@ import {
   IsString,
   IsIn,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ProductStatus } from '../../resources/products/entities/product.entity';
@@ -257,4 +258,19 @@ export class StockMovementPaginationQueryDto extends BasePaginationQueryDto {
   order?: 'ASC' | 'DESC' = 'DESC';
 
   [key: string]: unknown;
+}
+
+export class NotificationPaginationQueryDto extends BasePaginationQueryDto {
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  isRead?: boolean;
+
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

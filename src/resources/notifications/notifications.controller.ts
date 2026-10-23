@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Patch,
-  Param,
-  Query,
-  ParseIntPipe,
-  DefaultValuePipe,
-} from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
@@ -14,6 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 import { UserPermission } from '../../common/enum/user_permission.enum';
+import { NotificationPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 @Controller('notifications')
 export class NotificationsController {
@@ -29,12 +22,14 @@ export class NotificationsController {
   @Get()
   findAll(
     @CurrentUser() { id }: AuthenticatedUser,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe)
-    page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe)
-    limit: number,
+    @Query() paginationQuery: NotificationPaginationQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.notificationsService.findAllForRecipient(id, page, limit);
+    return this.notificationsService.findAllForRecipient(
+      id,
+      paginationQuery,
+      user,
+    );
   }
 
   @Roles([

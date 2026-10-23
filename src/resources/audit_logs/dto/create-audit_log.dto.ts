@@ -10,23 +10,23 @@ export class CreateAuditLogDto {
   action!: AuditLogAction;
 
   @IsUUID('4', { message: 'Invalid user ID format', each: true })
-  userId?: string;
+  user_id?: string;
 
   @IsEnum(AuditLogEntity, { message: 'Invalid entity type' })
   entity!: AuditLogEntity;
 
   @IsUUID('4', { message: 'Invalid entity ID format' })
-  entityId!: string;
+  entity_id!: string;
 
   @IsOptional()
   @IsObject({ message: 'Old value must be an object' })
   @MaxObjectSize(50000)
-  oldValue?: Record<string, any> | null;
+  old_value?: Record<string, any> | null;
 
   @IsOptional()
   @IsObject({ message: 'New value must be an object' })
   @MaxObjectSize(50000)
-  newValue?: Record<string, any> | null;
+  new_value?: Record<string, any> | null;
 
   @IsOptional()
   @IsObject({ message: 'Metadata must be an object' })

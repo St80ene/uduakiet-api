@@ -174,8 +174,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
      * Unique:
      *   business_id + code
      *
-     * Non-unique:
-     *   business_id
+     * Non-unique: business_id
      */
 
     await queryRunner.createTable(
@@ -303,7 +302,6 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             name: 'name',
             type: 'varchar',
             length: '100',
-            isUnique: true,
           },
           { name: 'business_id', type: 'varchar', length: '36' },
           {
@@ -336,8 +334,9 @@ export class InitialSchema1783699991545 implements MigrationInterface {
     await queryRunner.createIndex(
       'roles',
       new TableIndex({
-        name: 'IDX_roles_business',
-        columnNames: ['business_id'],
+        name: 'UQ_ROLE_NAME_BUSINESS', // Matches the name in your Entity metadata
+        columnNames: ['name', 'business_id'],
+        isUnique: true, // 👈 This makes it act as a unique constraint in MySQL
       }),
     );
 
@@ -1113,7 +1112,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
      *
      * One row represents:
      *
-     *     Product × Store
+     * Product × Store
      *
      * quantity is the current inventory balance.
      */
@@ -1759,7 +1758,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'payload',
-            type: 'simple-json',
+            type: 'json',
             isNullable: true,
           },
           {
@@ -1858,7 +1857,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'data',
-            type: 'simple-json',
+            type: 'json',
             isNullable: true,
             default: 'NULL',
           },
