@@ -55,7 +55,7 @@ export class AuthService {
     await this.auditLogService.create(
       {
         entity: AuditLogEntity.USER,
-        entityId: user.id,
+        entity_id: user.id,
         action: AuditLogAction.LOGIN,
       },
       {

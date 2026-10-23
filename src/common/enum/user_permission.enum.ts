@@ -45,13 +45,14 @@ export enum UserPermission {
   PURCHASE_UPDATE = 'purchase:update',
   PURCHASE_DELETE = 'purchase:delete',
   PURCHASE_APPROVE = 'purchase:approve',
+  PURCHASE_MANAGE = 'purchase:manage',
 
   // Suppliers
   SUPPLIER_READ = 'supplier:read',
   SUPPLIER_CREATE = 'supplier:create',
   SUPPLIER_UPDATE = 'supplier:update',
   SUPPLIER_DELETE = 'supplier:delete',
-  SUPPLIER_METRICS_READ = 'supplier:metrics',
+  SUPPLIER_METRICS_READ = 'supplier_metrics:read',
 
   // Customers
   CUSTOMER_READ = 'customer:read',
@@ -73,23 +74,28 @@ export enum UserPermission {
   BUSINESS_CREATE = 'business:create',
   BUSINESS_SETTINGS_READ = 'business_settings:read',
   BUSINESS_SETTINGS_UPDATE = 'business_settings:update',
+  BUSINESS_SETTINGS_DELETE = 'business_settings:delete',
 
   // Audit
   AUDIT_LOG_READ = 'audit_log:read',
 
   // Dashboard
   DASHBOARD_VIEW = 'dashboard:view',
-  DASHBOARD_SALES_VIEW = 'dashboard:sales',
-  DASHBOARD_INVENTORY_VIEW = 'dashboard:inventory',
-  DASHBOARD_PROCUREMENT_VIEW = 'dashboard:procurement',
-  DASHBOARD_WAREHOUSE_VIEW = 'dashboard:warehouse',
+  DASHBOARD_SALES_VIEW = 'dashboard_sales:view',
+  DASHBOARD_INVENTORY_VIEW = 'dashboard_inventory:view',
+  DASHBOARD_PROCUREMENT_VIEW = 'dashboard_procurement:view',
+  DASHBOARD_WAREHOUSE_VIEW = 'dashboard_warehouse:view',
 
   // Reports
   REPORT_VIEW = 'report:view',
-  REPORT_SALES_VIEW = 'report:sales',
-  REPORT_INVENTORY_VIEW = 'report:inventory',
-  REPORT_FINANCIAL_VIEW = 'report:financial',
+  REPORT_SALES_VIEW = 'report_sales:view',
+  REPORT_INVENTORY_VIEW = 'report_inventory:view',
+  REPORT_FINANCIAL_VIEW = 'report_financial:view',
   REPORT_EXPORT = 'report:export',
-  BUSINESS_SETTINGS_DELETE = 'business_settings:delete',
-  PURCHASE_MANAGE = 'purchase:manage',
+
+  // Notifications
+  NOTIFICATION_UNREAD_COUNT = 'notification:unread_count',
+  NOTIFICATION_READ_ONE = 'notification:read_one',
+  NOTIFICATION_READ_ALL = 'notification:read_all',
+  NOTIFICATION_UPDATE_READ_ALL = 'notification:update_read_all',
 }

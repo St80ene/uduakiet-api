@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -13,7 +14,7 @@ import { IsEnum } from 'class-validator';
 import { Business } from '../../resources/business/entities/business.entity';
 
 @Entity({ name: 'roles' })
-@Unique(['business_id', 'name'])
+@Unique('UQ_ROLE_NAME_BUSINESS', ['name', 'business_id'])
 export class Role {
   constructor(props?: Partial<Role>) {
     if (props) {
@@ -41,6 +42,7 @@ export class Role {
   @ManyToOne(() => Business, (business) => business.roles, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'business_id' })
   business!: Business;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

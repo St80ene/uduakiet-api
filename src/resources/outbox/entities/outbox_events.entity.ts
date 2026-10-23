@@ -58,7 +58,7 @@ export class OutboxEvent {
   @Column({ type: 'varchar', length: 36 })
   store_id!: string;
 
-  @Column({ type: 'simple-json', nullable: true })
+  @Column({ type: 'json', nullable: true })
   payload!: OutboxEventPayload | Record<string, any> | null; // The data associated with the event.
 
   @Column({

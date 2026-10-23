@@ -108,6 +108,8 @@ export class NotificationsGateway
     this.server
       .to(this.getUserRoom(recipientId))
       .emit('notification:new', notification);
+
+    console.log(`notification emitted to user outside the app `);
   }
 
   /**

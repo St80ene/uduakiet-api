@@ -33,6 +33,7 @@ import { Product } from '../products/entities/product.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { ProductSource } from '../product_sources/entities/product_source.entity';
 import {
+  LowStockEvent,
   OutboxEvent,
   OutboxEventAggregateType,
   OutboxEventStatus,
@@ -241,6 +242,7 @@ export class StocksService {
           quantity_before,
           quantity_after: physical_quantity,
           unit_selling_price: product.selling_price,
+          unit_cost_price: 0,
           reason,
         }),
       );
@@ -256,13 +258,13 @@ export class StocksService {
         physical_quantity <= reorderLevel;
 
       if (crossedReorderLevel) {
-        const payload = {
+        const payload: Partial<LowStockEvent> = {
           business_id: businessId,
           store_id: stock.store_id,
           product_id: product.id,
           current_quantity: physical_quantity,
-          reorder_level: reorderLevel,
-          is_out_of_stock: physical_quantity === 0,
+          reorder_point: reorderLevel,
+          is_out_of_stock: physical_quantity === 0 ? true : false,
         };
 
         // PUBLISH EVENT TO OUTBOX (for async processing by event worker)
@@ -285,6 +287,8 @@ export class StocksService {
           }),
         );
       }
+
+      console.log('outbox event saved successfully');
 
       await queryRunner.commitTransaction();
 

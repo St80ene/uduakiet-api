@@ -5,7 +5,38 @@ import { UserRole } from '../../common/enum/user_role.enum';
 import { UserPermission } from '../../common/enum/user_permission.enum';
 import { RolePermissions } from '../../auth/entities/role_permissions.entity';
 
-const User_Permission = UserPermission;
+const {
+  PRODUCT_READ,
+  PRODUCT_CREATE,
+  PRODUCT_UPDATE,
+  PRODUCT_SOURCE_READ,
+  CATEGORY_READ,
+  STOCK_READ,
+  STOCK_ADJUST,
+  STOCK_TRANSFER,
+  STOCK_MOVEMENT_READ,
+  STORE_READ,
+  PURCHASE_READ,
+  PURCHASE_CREATE,
+  SUPPLIER_READ,
+  DASHBOARD_VIEW,
+  DASHBOARD_INVENTORY_VIEW,
+  DASHBOARD_WAREHOUSE_VIEW,
+  REPORT_VIEW,
+  REPORT_INVENTORY_VIEW,
+  BUSINESS_CREATE,
+  USER_READ,
+  ROLE_READ,
+  BUSINESS_SETTINGS_READ,
+  SALE_READ,
+  SALE_CREATE,
+  CUSTOMER_READ,
+  CUSTOMER_CREATE,
+  NOTIFICATION_UNREAD_COUNT,
+  NOTIFICATION_READ_ALL,
+  NOTIFICATION_UPDATE_READ_ALL,
+  NOTIFICATION_READ_ONE,
+} = UserPermission;
 const All_Permissions: UserPermission[] = Object.values(UserPermission);
 
 /** All permissions whose resource (the part before ':') is in the list. */
@@ -27,10 +58,7 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: UserRole.ADMIN,
     description: 'Business Owner or General Manager',
-    // Everything except platform-level business creation
-    permissions: All_Permissions.filter(
-      (p) => p !== User_Permission.BUSINESS_CREATE,
-    ),
+    permissions: All_Permissions.filter((p) => p !== BUSINESS_CREATE),
   },
   {
     name: UserRole.MANAGER,
@@ -51,47 +79,56 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
         'customer',
         'dashboard',
         'report',
+        'notification',
       ),
-      User_Permission.USER_READ,
-      User_Permission.ROLE_READ,
-      User_Permission.BUSINESS_SETTINGS_READ,
+      USER_READ,
+      ROLE_READ,
+      BUSINESS_SETTINGS_READ,
+      NOTIFICATION_UNREAD_COUNT,
+      NOTIFICATION_READ_ALL,
+      NOTIFICATION_UPDATE_READ_ALL,
+      NOTIFICATION_READ_ONE,
     ],
   },
   {
     name: UserRole.STOREMAN,
     description: 'Warehouse / Inventory Handler',
     permissions: [
-      User_Permission.PRODUCT_READ,
-      User_Permission.PRODUCT_CREATE,
-      User_Permission.PRODUCT_UPDATE,
-      User_Permission.PRODUCT_SOURCE_READ,
-      User_Permission.CATEGORY_READ,
-      User_Permission.STOCK_READ,
-      User_Permission.STOCK_ADJUST,
-      User_Permission.STOCK_TRANSFER,
-      User_Permission.STOCK_MOVEMENT_READ,
-      User_Permission.STORE_READ,
-      User_Permission.PURCHASE_READ,
-      User_Permission.PURCHASE_CREATE,
-      User_Permission.SUPPLIER_READ,
-      User_Permission.DASHBOARD_VIEW,
-      User_Permission.DASHBOARD_INVENTORY_VIEW,
-      User_Permission.DASHBOARD_WAREHOUSE_VIEW,
-      User_Permission.REPORT_VIEW,
-      User_Permission.REPORT_INVENTORY_VIEW,
+      PRODUCT_READ,
+      PRODUCT_CREATE,
+      PRODUCT_UPDATE,
+      PRODUCT_SOURCE_READ,
+      CATEGORY_READ,
+      STOCK_READ,
+      STOCK_ADJUST,
+      STOCK_TRANSFER,
+      STOCK_MOVEMENT_READ,
+      STORE_READ,
+      PURCHASE_READ,
+      PURCHASE_CREATE,
+      SUPPLIER_READ,
+      DASHBOARD_VIEW,
+      DASHBOARD_INVENTORY_VIEW,
+      DASHBOARD_WAREHOUSE_VIEW,
+      REPORT_VIEW,
+      REPORT_INVENTORY_VIEW,
+      NOTIFICATION_UNREAD_COUNT,
+      NOTIFICATION_READ_ALL,
+      NOTIFICATION_UPDATE_READ_ALL,
+      NOTIFICATION_READ_ONE,
     ],
   },
   {
     name: UserRole.CASHIER,
     description: 'Sales Point Operator',
     permissions: [
-      User_Permission.PRODUCT_READ,
-      User_Permission.CATEGORY_READ,
-      User_Permission.STOCK_READ,
-      User_Permission.SALE_READ,
-      User_Permission.SALE_CREATE,
-      User_Permission.CUSTOMER_READ,
-      User_Permission.CUSTOMER_CREATE,
+      PRODUCT_READ,
+      CATEGORY_READ,
+      STOCK_READ,
+      SALE_READ,
+      SALE_CREATE,
+      CUSTOMER_READ,
+      CUSTOMER_CREATE,
     ],
   },
 ];
@@ -110,43 +147,62 @@ export async function seedGlobalPermissionsAndRoles(
   const rolePermissionRepository =
     queryRunner.manager.getRepository(RolePermissions);
 
-  // 1. Permissions are global: create only the ones that don't exist yet,
-  //    so seeding a second business doesn't hit the unique constraint on name.
-  const existing = await permissionRepository.find();
-  const byName = new Map(existing.map((p) => [p.name, p]));
+  // 1. Permissions are global: create only the ones that don't exist yet
+  const existingPermissions = await permissionRepository.find();
+  const byName = new Map(existingPermissions.map((p) => [p.name, p]));
 
-  const missing = All_Permissions.filter((name) => !byName.has(name)).map(
-    (name) =>
-      permissionRepository.create({ name, description: describe(name) }),
+  const missingPermissions = All_Permissions.filter(
+    (name) => !byName.has(name),
+  ).map((name) =>
+    permissionRepository.create({ name, description: describe(name) }),
   );
-  if (missing.length) {
-    const saved = await permissionRepository.save(missing);
+  if (missingPermissions.length) {
+    const saved = await permissionRepository.save(missingPermissions);
     saved.forEach((p) => byName.set(p.name, p));
   }
 
-  // 2. Roles for this business, each wired to its default permissions
-  //    through the RolePermissions junction entity.
+  // 2. Roles for this business: check if role exists for this business before saving
   const roles: Role[] = [];
   for (const definition of ROLE_DEFINITIONS) {
-    const role = await roleRepository.save(
-      roleRepository.create({
+    let role = await roleRepository.findOne({
+      where: {
         name: definition.name,
-        description: definition.description,
         business_id: businessId,
-        is_system: true,
-      }),
-    );
+      },
+    });
+
+    if (!role) {
+      role = await roleRepository.save(
+        roleRepository.create({
+          name: definition.name,
+          description: definition.description,
+          business_id: businessId,
+          is_system: true,
+        }),
+      );
+    }
     roles.push(role);
 
-    const rolePermissions = [...new Set(definition.permissions)].map((name) =>
-      rolePermissionRepository.create({
-        role_id: role.id,
-        permission_id: byName.get(name)!.id,
-      }),
+    // 3. Sync permissions for this role safely to avoid junction table unique constraint violations
+    const existingRolePermissions = await rolePermissionRepository.find({
+      where: { role_id: role.id },
+    });
+    const existingPermissionIds = new Set(
+      existingRolePermissions.map((rp) => rp.permission_id),
     );
 
-    if (rolePermissions.length) {
-      await rolePermissionRepository.save(rolePermissions);
+    const missingRolePermissions = [...new Set(definition.permissions)]
+      .map((name) => byName.get(name)!.id)
+      .filter((permissionId) => !existingPermissionIds.has(permissionId)) // Only add missing junctions
+      .map((permissionId) =>
+        rolePermissionRepository.create({
+          role_id: role.id,
+          permission_id: permissionId,
+        }),
+      );
+
+    if (missingRolePermissions.length) {
+      await rolePermissionRepository.save(missingRolePermissions);
     }
   }
 

@@ -26,8 +26,6 @@ export class OutboxProcessorService {
 
   // Check for eligible events every five seconds.
   @Interval(5000)
-  // Check for eligible events every five seconds.
-  @Interval(5000)
   async processPendingEvents(): Promise<void> {
     if (this.isRunning) return;
 
@@ -76,9 +74,10 @@ export class OutboxProcessorService {
       event.attempts += 1;
       await this.outboxRepository.save(event);
 
-      // Dispatch evvents and wait for asynchronous listeners to finish.
+      // Dispatch events and wait for asynchronous listeners to finish.
       // A rejected listener causes this dispatch to fail.
-      await this.eventEmitter.emitAsync(event.event_type, event.payload);
+      const event_payload = { ...event.payload, event_id: event.id };
+      await this.eventEmitter.emitAsync(event.event_type, event_payload);
 
       event.status = OutboxEventStatus.PUBLISHED;
       event.processed_at = new Date();
