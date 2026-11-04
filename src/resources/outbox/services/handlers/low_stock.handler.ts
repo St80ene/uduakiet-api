@@ -24,13 +24,12 @@ export class LowStockHandler {
 
   @OnEvent(OutboxEventType.LOWSTOCK_DETECTED, { async: true })
   async handle(payload: LowStockEvent): Promise<void> {
-    console.log(`${OutboxEventType.LOWSTOCK_DETECTED} happening`);
     const queryRunner = this.data_source.createQueryRunner();
 
     // Keep each recipient paired with their persisted notification.
     const notificationsToEmit: Array<{
       recipientId: string;
-      notification: Awaited<ReturnType<NotificationsService['create']>>;
+      payload: { unread_count: number | undefined };
     }> = [];
 
     try {
@@ -44,6 +43,7 @@ export class LowStockHandler {
         current_quantity,
         reorder_point,
         is_out_of_stock,
+        product_name,
       } = payload;
 
       // Find business admins and managers assigned to the affected store.
@@ -80,23 +80,28 @@ export class LowStockHandler {
         type: OutboxEventType.LOWSTOCK_DETECTED,
         title: is_out_of_stock ? 'Out of Stock Alert' : 'Low Stock Alert',
         message: is_out_of_stock
-          ? 'A product is out of stock.'
-          : `A product has ${current_quantity} units remaining, below the reorder point of ${reorder_point}.`,
+          ? `A product(${product_name}) is out of stock. Create a Purchase order.`
+          : `${product_name} has ${current_quantity} units remaining, below the reorder point of ${reorder_point}. Create a Purchase order for this product.`,
         data: payload,
         is_read: false,
       };
 
       // Persist one notification per recipient within the transaction.
       for (const recipient of recipients) {
-        const savedNotification = await this.notifications_service.create(
+        await this.notifications_service.create(
           notificationPayload,
           queryRunner.manager,
           recipient.id,
         );
 
+        const response = await this.notifications_service.getUnreadCount(
+          recipient.id,
+        );
+        if (!response) throw new Error('Unread count not successful');
+
         notificationsToEmit.push({
           recipientId: recipient.id,
-          notification: savedNotification,
+          payload: { unread_count: response?.data?.unread_count },
         });
       }
 
@@ -104,10 +109,8 @@ export class LowStockHandler {
       await queryRunner.commitTransaction();
 
       // Notify every recipient's active connections.
-      for (const { recipientId, notification } of notificationsToEmit) {
-        this.notificationsGateway.emitToUser(recipientId, notification);
-
-        console.log(`notification emitted to user `);
+      for (const { recipientId, payload } of notificationsToEmit) {
+        this.notificationsGateway.emitToUser(recipientId, payload);
       }
 
       this.logger.log(

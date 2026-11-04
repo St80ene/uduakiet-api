@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -19,6 +20,10 @@ export class CreateProductSourceDto {
   @IsOptional()
   @IsString()
   supplier_sku?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_primary?: boolean;
 
   @IsOptional()
   @Type(() => Number)

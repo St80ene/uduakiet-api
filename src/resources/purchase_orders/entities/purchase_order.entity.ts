@@ -15,8 +15,6 @@ import { Store } from '../../stores/entities/store.entity';
 import { User } from '../../users/entities/user.entity';
 
 export enum PurchaseOrderStatus {
-  DRAFT = 'DRAFT',
-  PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   RECEIVED = 'RECEIVED',
   CANCELLED = 'CANCELLED',
@@ -60,8 +58,8 @@ export class PurchaseOrder {
   @Column({ unique: true })
   po_number!: string;
 
-  @Column()
-  supplier_id!: string;
+  @Column({ nullable: true })
+  supplier_id?: string | null;
 
   @Column({ type: 'varchar', length: 36 })
   store_id!: string;
@@ -69,7 +67,11 @@ export class PurchaseOrder {
   @Column({ type: 'varchar', length: 36 })
   business_id!: string;
 
-  @Column({ type: 'varchar', length: 30, default: PurchaseOrderStatus.DRAFT })
+  @Column({
+    type: 'varchar',
+    length: 30,
+    default: PurchaseOrderStatus.PENDING_APPROVAL,
+  })
   status?: PurchaseOrderStatus;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })

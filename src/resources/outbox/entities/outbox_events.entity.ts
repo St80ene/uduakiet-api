@@ -26,6 +26,8 @@ export interface LowStockEvent {
   reorder_point: number;
   is_out_of_stock: boolean;
   occurred_at: Date;
+  product_name: string;
+  store_name: string;
 }
 
 export type OutboxEventPayload = LowStockEvent | Record<string, unknown>;
@@ -50,7 +52,7 @@ export class OutboxEvent {
   aggregate_id!: string; // The ID of the affected entity.
 
   @Column({ type: 'varchar', length: 100 })
-  aggregate_type!: OutboxEventAggregateType; // e.g. 'Stock', 'PurchaseOrder'
+  aggregate_type!: OutboxEventAggregateType; // Entity affected e.g. 'Stock', 'PurchaseOrder'
 
   @Column({ type: 'varchar', length: 36 })
   business_id!: string;

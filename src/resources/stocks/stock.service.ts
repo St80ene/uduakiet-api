@@ -190,6 +190,7 @@ export class StocksService {
           store_id: storeId,
           business_id: businessId,
         },
+        relations: { store: true },
         ...(supportsLocks
           ? { lock: { mode: 'pessimistic_write' as const } }
           : {}),
@@ -205,6 +206,8 @@ export class StocksService {
           }),
         );
       }
+
+      const store_name = stock?.store?.name || '';
 
       /**
        * 3. QUANTITY DIFFERENCE
@@ -257,13 +260,17 @@ export class StocksService {
         quantity_before > reorderLevel &&
         physical_quantity <= reorderLevel;
 
-      if (crossedReorderLevel) {
+      const hit_zero = quantity_before > 0 && physical_quantity === 0;
+
+      if (crossedReorderLevel || hit_zero) {
         const payload: Partial<LowStockEvent> = {
           business_id: businessId,
           store_id: stock.store_id,
           product_id: product.id,
           current_quantity: physical_quantity,
           reorder_point: reorderLevel,
+          product_name: product.name,
+          store_name,
           is_out_of_stock: physical_quantity === 0 ? true : false,
         };
 
@@ -287,8 +294,6 @@ export class StocksService {
           }),
         );
       }
-
-      console.log('outbox event saved successfully');
 
       await queryRunner.commitTransaction();
 

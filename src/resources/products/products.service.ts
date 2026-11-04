@@ -223,18 +223,10 @@ export class ProductsService {
     const queryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.sources', 'sources')
-      .leftJoinAndSelect('product.stocks', 'stock')
       .where('product.deleted_at IS NULL')
       .andWhere('product.business_id = :businessId', {
         businessId: user.businessId,
       });
-
-    if (user.storeId) {
-      queryBuilder.andWhere('stock.store_id = :storeId', {
-        storeId: user.storeId,
-      });
-    }
 
     if (search) {
       queryBuilder.andWhere(

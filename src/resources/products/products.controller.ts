@@ -21,15 +21,15 @@ import {
   PaginationMeta,
   ProductPaginationQueryDto,
 } from '../../common/dto/pagination-query.dto';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { ApiResponse } from '../../common/utils/response.utils';
 import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { Product } from './entities/product.entity';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { UserPermission } from '../../common/enum/user_permission.enum';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @Controller('products')
 export class ProductsController {

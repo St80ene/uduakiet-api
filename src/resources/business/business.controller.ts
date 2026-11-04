@@ -14,10 +14,10 @@ import { BusinessesService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 import { UserPermission } from '../../common/enum/user_permission.enum';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
 
 @Controller('businesses')
 export class BusinessController {

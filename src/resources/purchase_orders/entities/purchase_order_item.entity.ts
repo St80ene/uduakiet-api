@@ -37,10 +37,10 @@ export class PurchaseOrderItem {
   @Column({ type: 'int' })
   quantity_received!: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  estimated_unit_cost!: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  estimated_unit_cost?: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
   total_cost!: number;
 
   @ManyToOne(() => PurchaseOrder, (po) => po.items, { onDelete: 'CASCADE' })

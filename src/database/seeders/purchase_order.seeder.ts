@@ -38,12 +38,22 @@ export async function seedPurchaseOrders(
     return;
   }
 
+  // Separate primary vs secondary sources to bias PO generation towards primary items
+  const primaryBusinessSources = businessSources.filter(
+    (src) => src.is_primary,
+  );
+
   for (let i = 0; i < poCountPerBusiness; i++) {
     const poId = randomUUID();
     const poNumber = `PO-${bizBlueprint.prefix}-2026-${String(i + 1).padStart(3, '0')}`;
 
-    // 1. Pick a random product source first, which guarantees a valid supplier link!
-    const randomSource = faker.helpers.arrayElement(businessSources);
+    // 1. Prefer starting with a primary product source (80% probability) for realistic procurement
+    const sourcePool =
+      primaryBusinessSources.length > 0 && faker.datatype.boolean(0.8)
+        ? primaryBusinessSources
+        : businessSources;
+
+    const randomSource = faker.helpers.arrayElement(sourcePool);
     const supplierId = randomSource.supplier_id;
 
     const supplier = supplierSeedData.find((s) => s.id === supplierId);
@@ -58,10 +68,13 @@ export async function seedPurchaseOrders(
     const store = faker.helpers.arrayElement(storeSeedData);
     const actingUser = faker.helpers.arrayElement(tenantUsers);
 
-    // 2. Grab all valid sources for this specific supplier
-    const validSourcesForSupplier = businessSources.filter(
-      (src) => src.supplier_id === supplier.id,
-    );
+    // 2. Grab all valid sources for this specific supplier, sorting primary sources first
+    const validSourcesForSupplier = businessSources
+      .filter((src) => src.supplier_id === supplier.id)
+      .sort(
+        (a, b) =>
+          (b.is_primary === true ? 1 : 0) - (a.is_primary === true ? 1 : 0),
+      );
 
     // Determine sample boundaries safely
     const sampleSize = faker.number.int({

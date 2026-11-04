@@ -14,7 +14,10 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { Notifications } from './entities/notification.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationPaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { successResponse } from '../../common/utils/response.utils';
+import {
+  ApiResponse,
+  successResponse,
+} from '../../common/utils/response.utils';
 import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
 export interface INotificationCriteria {
@@ -83,7 +86,7 @@ export class NotificationsService {
     paginationQuery: NotificationPaginationQueryDto,
     user: AuthenticatedUser,
   ) {
-    const { limit = 10, cursor, isRead, search } = paginationQuery;
+    const { limit = 10, cursor, is_read, search } = paginationQuery;
 
     const queryBuilder = this.notificationsRepository
       .createQueryBuilder('notification')
@@ -95,9 +98,9 @@ export class NotificationsService {
       });
 
     // Apply the read/unread filter only when explicitly provided.
-    if (isRead !== undefined) {
-      queryBuilder.andWhere('notification.is_read = :isRead', {
-        isRead,
+    if (is_read !== undefined) {
+      queryBuilder.andWhere('notification.is_read = :is_read', {
+        is_read,
       });
     }
 
@@ -120,14 +123,14 @@ export class NotificationsService {
 
       queryBuilder.andWhere(
         new Brackets((qb) => {
-          qb.where('notification.created_at < :cursorCreatedAt', {
-            cursorCreatedAt: decodedCursor.createdAt,
+          qb.where('notification.created_at < :cursor_created_at', {
+            cursor_created_at: decodedCursor.created_at,
           }).orWhere(
-            `notification.created_at = :cursorCreatedAt
-           AND notification.id < :cursorId`,
+            `notification.created_at = :cursor_created_at
+           AND notification.id < :cursor_id`,
             {
-              cursorCreatedAt: decodedCursor.createdAt,
-              cursorId: decodedCursor.id,
+              cursor_created_at: decodedCursor.created_at,
+              cursor_id: decodedCursor.id,
             },
           );
         }),
@@ -163,13 +166,17 @@ export class NotificationsService {
     });
   }
 
-  public async getUnreadCount(recipientId: string): Promise<number> {
-    return this.notificationsRepository.count({
+  public async getUnreadCount(
+    recipientId: string,
+  ): Promise<ApiResponse<{ unread_count: number }>> {
+    const unread_count = await this.notificationsRepository.count({
       where: {
         recipient_id: recipientId,
         is_read: false,
       },
     });
+
+    return successResponse('Unread notifications count', { unread_count });
   }
 
   async markAsRead(
@@ -238,7 +245,7 @@ export class NotificationsService {
   }
 
   private decodeNotificationCursor(cursor: string): {
-    createdAt: string;
+    created_at: string;
     id: string;
   } {
     try {
@@ -253,8 +260,8 @@ export class NotificationsService {
       const payload = decoded as Record<string, unknown>;
 
       if (
-        typeof payload.createdAt !== 'string' ||
-        Number.isNaN(Date.parse(payload.createdAt)) ||
+        typeof payload.created_at !== 'string' ||
+        Number.isNaN(Date.parse(payload.created_at)) ||
         typeof payload.id !== 'string' ||
         payload.id.length === 0
       ) {
@@ -262,7 +269,7 @@ export class NotificationsService {
       }
 
       return {
-        createdAt: new Date(payload.createdAt).toISOString(),
+        created_at: new Date(payload.created_at).toISOString(),
         id: payload.id,
       };
     } catch {

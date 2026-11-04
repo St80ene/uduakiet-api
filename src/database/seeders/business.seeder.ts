@@ -210,7 +210,7 @@ export const BUSINESS_SIZE_CONFIGURATION: IBusinessSize = {
  * ============================================================
  */
 
-export const BUSINESS_SIZE: BusinessSizeKeys = 'SMALL';
+export const BUSINESS_SIZE: BusinessSizeKeys = 'MEDIUM';
 
 export const profileKey: BusinessSizeKeys =
   BUSINESS_SIZE.toUpperCase() as BusinessSizeKeys;

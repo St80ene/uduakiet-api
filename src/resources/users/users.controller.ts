@@ -20,8 +20,6 @@ import { ChangeUserRoleDto, CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 import { UserRole } from '../../common/enum/user_role.enum';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 import { User } from './entities/user.entity';
 
@@ -29,7 +27,9 @@ import { ApiResponse } from '../../common/utils/response.utils';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { UserPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { UserPermission } from '../../common/enum/user_permission.enum';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @Controller('users')
 export class UsersController {

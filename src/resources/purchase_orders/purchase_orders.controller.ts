@@ -14,19 +14,20 @@ import { UpdatePurchaseOrderDto } from './dto/update-purchase_order.dto';
 import { PurchaseOrdersService } from './purchase_orders.service';
 import { PurchaseOrderPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { type AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { ReceivePurchaseOrderDto } from './entities/purchase_order_item.entity';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 import { UserPermission } from '../../common/enum/user_permission.enum';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
+const { ADMIN, SUPER_ADMIN, STOREMAN, MANAGER } = UserRole;
 
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
   constructor(private readonly poService: PurchaseOrdersService) {}
 
   @Post()
-  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.STOREMAN]) // Only these roles can create
+  @Roles([ADMIN, SUPER_ADMIN, STOREMAN, MANAGER]) // Only these roles can create
   @UserRolePermissions([UserPermission.PURCHASE_CREATE])
   create(
     @Body() createPurchaseOrderDto: CreatePurchaseOrderDto,
@@ -41,12 +42,7 @@ export class PurchaseOrdersController {
   }
 
   @Get()
-  @Roles([
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.SUPER_ADMIN,
-    UserRole.STOREMAN,
-  ]) // Broad read access
+  @Roles([ADMIN, MANAGER, SUPER_ADMIN, STOREMAN]) // Broad read access
   @UserRolePermissions([UserPermission.PURCHASE_READ])
   findAll(
     @Query() paginationQuery: PurchaseOrderPaginationQueryDto,
@@ -56,12 +52,7 @@ export class PurchaseOrdersController {
   }
 
   @Get(':id')
-  @Roles([
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.SUPER_ADMIN,
-    UserRole.STOREMAN,
-  ])
+  @Roles([ADMIN, MANAGER, SUPER_ADMIN, STOREMAN])
   @UserRolePermissions([UserPermission.PURCHASE_READ])
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -71,7 +62,7 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id')
-  @Roles([UserRole.ADMIN, UserRole.SUPER_ADMIN]) // Only higher management can update
+  @Roles([ADMIN, SUPER_ADMIN, MANAGER]) // Only higher management can update
   @UserRolePermissions([UserPermission.PURCHASE_UPDATE])
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -86,7 +77,7 @@ export class PurchaseOrdersController {
     );
   }
 
-  @Roles([UserRole.STOREMAN]) // Only these roles can receive
+  @Roles([STOREMAN]) // Only these roles can receive
   @Post(':id/receive')
   receive(
     @Param('id', ParseUUIDPipe) id: string,

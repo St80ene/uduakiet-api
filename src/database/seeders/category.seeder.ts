@@ -121,20 +121,15 @@ export async function seedCategoryAndSuppliers(
   // ============================================================
   // 3. BUILD PRODUCT NAME COMBINATIONS
   // ============================================================
-  // Generate combinations from the catalog instead of randomly
-  // choosing a template on every iteration. This makes it possible
-  // to use different products, brands, and package variations.
   const productNameMap = new Map<string, ProductNameCandidate>();
 
   for (const template of productCatalog) {
     const brands = template.brands?.length ? template.brands : [''];
-
     const variants = template.variants?.length ? template.variants : [''];
 
     for (const brand of brands) {
       for (const variant of variants) {
         const name = [brand, template.name, variant].filter(Boolean).join(' ');
-
         const normalizedName = name.trim().toLowerCase();
 
         if (!productNameMap.has(normalizedName)) {
@@ -163,16 +158,10 @@ export async function seedCategoryAndSuppliers(
   // 4. SEED PRODUCTS
   // ============================================================
   const productSeedData: Partial<Product>[] = [];
-
-  // Track generated SKUs to avoid collisions within this seed run.
   const generatedSkus = new Set<string>();
 
   for (let prodIndex = 0; prodIndex < counts.productCount; prodIndex++) {
-    // Cycle through every available combination before reusing one.
-    // If more products are requested than the catalog can uniquely
-    // name, add a numbered variation to preserve name uniqueness.
     const combinationIndex = prodIndex % productNameCandidates.length;
-
     const variationNumber = Math.floor(
       prodIndex / productNameCandidates.length,
     );
@@ -204,7 +193,6 @@ export async function seedCategoryAndSuppliers(
     });
 
     const imageUrl = faker.helpers.arrayElement(template.imageUrls);
-
     const images = [
       {
         url: imageUrl,
@@ -213,7 +201,6 @@ export async function seedCategoryAndSuppliers(
     ];
 
     let sku: string;
-
     do {
       sku = `${bizBlueprint.prefix}-${faker.string.alphanumeric(6).toUpperCase()}`;
     } while (generatedSkus.has(sku));
@@ -271,7 +258,7 @@ export async function seedCategoryAndSuppliers(
   }
 
   // ============================================================
-  // 5. SEED PRODUCT SOURCES
+  // 5. SEED PRODUCT SOURCES (WITH `is_primary`)
   // ============================================================
   const productSourcesSeedData: Partial<ProductSource>[] = [];
 
@@ -288,12 +275,15 @@ export async function seedCategoryAndSuppliers(
           })
         : [];
 
-    for (const supplier of targetedSuppliers) {
+    for (let i = 0; i < targetedSuppliers.length; i++) {
+      const supplier = targetedSuppliers[i];
       if (!supplier.id) {
         continue;
       }
 
-      // Estimate a supplier cost below the retail selling price.
+      // The first supplier assigned to this product is marked as primary
+      const is_primary = i === 0;
+
       const costMarkupFactor = faker.number.float({
         min: 0.65,
         max: 0.85,
@@ -324,6 +314,7 @@ export async function seedCategoryAndSuppliers(
         cost_price: calculatedWholesaleCost,
         supplier_sku: supplierSku,
         estimated_lead_time_days: estimatedLeadTime,
+        is_primary,
       };
 
       productSourcesSeedData.push(sourceRecord);
@@ -332,9 +323,9 @@ export async function seedCategoryAndSuppliers(
         `
           INSERT INTO product_sources (
             id, product_id, business_id, supplier_id,
-            cost_price, supplier_sku, estimated_lead_time_days
+            cost_price, supplier_sku, estimated_lead_time_days, is_primary
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           sourceRecord.id,
@@ -344,6 +335,7 @@ export async function seedCategoryAndSuppliers(
           sourceRecord.cost_price,
           sourceRecord.supplier_sku,
           sourceRecord.estimated_lead_time_days,
+          sourceRecord.is_primary,
         ],
       );
     }

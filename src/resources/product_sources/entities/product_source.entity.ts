@@ -35,6 +35,9 @@ export class ProductSource {
   @Column({ type: 'int', nullable: true })
   estimated_lead_time_days?: number;
 
+  @Column({ type: 'boolean', default: false })
+  is_primary!: boolean;
+
   // Relation: Many product sources can belong to one supplier
   @ManyToOne(() => Supplier, (supplier) => supplier.product_sources, {
     onDelete: 'CASCADE',
