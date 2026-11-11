@@ -98,4 +98,6 @@ export enum UserPermission {
   NOTIFICATION_READ_ONE = 'notification:read_one',
   NOTIFICATION_READ_ALL = 'notification:read_all',
   NOTIFICATION_UPDATE_READ_ALL = 'notification:update_read_all',
+  PURCHASE_REJECT = 'purchase:reject',
+  PURCHASE_CANCEL = 'purchase:cancel',
 }

@@ -15,7 +15,9 @@ import { Store } from '../../stores/entities/store.entity';
 import { User } from '../../users/entities/user.entity';
 
 export enum PurchaseOrderStatus {
+  DRAFT = 'DRAFT',
   APPROVED = 'APPROVED',
+  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
   RECEIVED = 'RECEIVED',
   CANCELLED = 'CANCELLED',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
@@ -58,8 +60,8 @@ export class PurchaseOrder {
   @Column({ unique: true })
   po_number!: string;
 
-  @Column({ nullable: true })
-  supplier_id?: string | null;
+  @Column({ type: 'varchar', length: 36 })
+  supplier_id!: string;
 
   @Column({ type: 'varchar', length: 36 })
   store_id!: string;
@@ -70,7 +72,7 @@ export class PurchaseOrder {
   @Column({
     type: 'varchar',
     length: 30,
-    default: PurchaseOrderStatus.PENDING_APPROVAL,
+    default: PurchaseOrderStatus.DRAFT,
   })
   status?: PurchaseOrderStatus;
 
@@ -85,7 +87,11 @@ export class PurchaseOrder {
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'approved_by_id' })
-  user?: User | null;
+  approved_by?: User | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_id' })
+  created_by?: User | null;
 
   @OneToMany(() => PurchaseOrderItem, (item) => item.purchase_order, {
     cascade: true,
@@ -93,6 +99,7 @@ export class PurchaseOrder {
   items!: PurchaseOrderItem[];
 
   @ManyToOne(() => Supplier, {
+    nullable: false,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'supplier_id' })

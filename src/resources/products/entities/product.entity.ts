@@ -18,6 +18,7 @@ import { Stock } from '../../stocks/entities/stock.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { Business } from '../../business/entities/business.entity';
 import { CloudinaryImage } from '../../../common/utils/helpers/cloudinary/cloudinary.service';
+import { PurchaseOrderItem } from '../../purchase_orders/entities/purchase_order_item.entity';
 
 export enum UomType {
   UNIT = 'UNIT',
@@ -156,6 +157,9 @@ export class Product extends BaseEntity {
   })
   @JoinColumn({ name: 'business_id' })
   business!: Business;
+
+  @OneToMany(() => PurchaseOrderItem, (item) => item.product)
+  purchase_order_items!: PurchaseOrderItem[];
 
   @CreateDateColumn({
     type: 'datetime',

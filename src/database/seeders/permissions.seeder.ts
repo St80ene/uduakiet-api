@@ -36,6 +36,8 @@ const {
   NOTIFICATION_READ_ALL,
   NOTIFICATION_UPDATE_READ_ALL,
   NOTIFICATION_READ_ONE,
+  PURCHASE_REJECT,
+  PURCHASE_CANCEL,
 } = UserPermission;
 const All_Permissions: UserPermission[] = Object.values(UserPermission);
 
@@ -88,6 +90,8 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
       NOTIFICATION_READ_ALL,
       NOTIFICATION_UPDATE_READ_ALL,
       NOTIFICATION_READ_ONE,
+      PURCHASE_REJECT,
+      PURCHASE_CANCEL,
     ],
   },
   {

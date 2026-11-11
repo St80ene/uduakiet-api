@@ -5,7 +5,6 @@ import {
   ValidateNested,
   IsInt,
   Min,
-  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -17,7 +16,6 @@ export class CreatePoItemDto {
   @IsNotEmpty()
   product_id!: string;
 
-  @IsOptional()
   @IsInt()
   @Min(1)
   quantity_requested!: number; // e.g., 1500 for 1.5kg

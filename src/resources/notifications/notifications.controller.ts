@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, Post } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { UserRole } from '../../common/enum/user_role.enum';
@@ -21,6 +21,7 @@ export class NotificationsController {
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
     UserRole.CASHIER,
+    UserRole.STOREMAN,
   ])
   @UserRolePermissions([UserPermission.NOTIFICATION_READ_ALL])
   @Get()
@@ -41,6 +42,7 @@ export class NotificationsController {
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
     UserRole.CASHIER,
+    UserRole.STOREMAN,
   ])
   @UserRolePermissions([UserPermission.NOTIFICATION_UNREAD_COUNT])
   @Get('unread-count')
@@ -53,6 +55,7 @@ export class NotificationsController {
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
     UserRole.CASHIER,
+    UserRole.STOREMAN,
   ])
   @UserRolePermissions([UserPermission.NOTIFICATION_UPDATE_READ_ALL])
   @Patch('read-all')
@@ -65,6 +68,7 @@ export class NotificationsController {
     UserRole.SUPER_ADMIN,
     UserRole.MANAGER,
     UserRole.CASHIER,
+    UserRole.STOREMAN,
   ])
   @UserRolePermissions([UserPermission.NOTIFICATION_READ_ONE])
   @Patch(':id/read')
