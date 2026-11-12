@@ -1042,6 +1042,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'varchar',
             length: '36',
           },
+          { name: 'is_primary', type: 'boolean', default: false },
           {
             name: 'created_at',
             type: 'datetime',
@@ -1393,6 +1394,7 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             name: 'supplier_id',
             type: 'varchar',
             length: '36',
+            isNullable: true,
           },
           {
             name: 'status',
@@ -1428,6 +1430,11 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'datetime',
             default: 'CURRENT_TIMESTAMP',
             onUpdate: 'CURRENT_TIMESTAMP',
+          },
+          {
+            name: 'deleted_at',
+            type: 'datetime',
+            isNullable: true,
           },
         ],
       }),
@@ -1495,6 +1502,16 @@ export class InitialSchema1783699991545 implements MigrationInterface {
         name: 'IDX_purchase_orders_created_by',
         columnNames: ['created_by_id'],
       }),
+      // Speeds up fetching a business's POs, filtering by supplier (or finding drafts where supplier IS NULL)
+      new TableIndex({
+        name: 'IDX_purchase_orders_business_supplier',
+        columnNames: ['business_id', 'supplier_id'],
+      }),
+      // Speeds up fetching a specific store's PO workflow by creation date
+      new TableIndex({
+        name: 'IDX_purchase_orders_store_created',
+        columnNames: ['store_id', 'created_at'],
+      }),
     ]);
 
     /**
@@ -1536,12 +1553,14 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             type: 'decimal',
             precision: 10,
             scale: 2,
+            default: 0.0,
           },
           {
             name: 'total_cost',
             type: 'decimal',
             precision: 10,
             scale: 2,
+            default: 0.0,
           },
         ],
       }),

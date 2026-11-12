@@ -44,8 +44,13 @@ export enum UserPermission {
   PURCHASE_CREATE = 'purchase:create',
   PURCHASE_UPDATE = 'purchase:update',
   PURCHASE_DELETE = 'purchase:delete',
+  PURCHASE_SUBMIT = 'purchase:submit',
   PURCHASE_APPROVE = 'purchase:approve',
-  PURCHASE_MANAGE = 'purchase:manage',
+  PURCHASE_SEND = 'purchase:send',
+  PURCHASE_RECEIVE = 'purchase:receive',
+  PURCHASE_MANAGE = 'purchase:manage', // Legacy permission; migrate existing guards
+  PURCHASE_REJECT = 'purchase:reject',
+  PURCHASE_CANCEL = 'purchase:cancel',
 
   // Suppliers
   SUPPLIER_READ = 'supplier:read',

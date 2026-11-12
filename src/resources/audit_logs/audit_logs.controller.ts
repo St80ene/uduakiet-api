@@ -2,9 +2,9 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { AuditLogsService } from './audit_logs.service';
 import { AuditLogQueryDto } from './dto/auditlog_query.dto';
 import { UserRole } from '../../common/enum/user_role.enum';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { UserPermission } from '../../common/enum/user_permission.enum';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
 
 @Controller('audit-logs')
 export class AuditLogsController {

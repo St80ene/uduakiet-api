@@ -13,7 +13,6 @@ import { type DefaultEventsMap, type Namespace, type Socket } from 'socket.io';
 import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { JwtPayload } from '../../auth/interfaces/jwt_payload.interface';
 import { JwtStrategy } from '../../auth/strategies/jwt.strategy';
-import { Notifications } from '../../resources/notifications/entities/notification.entity';
 
 type NotificationSocketData = {
   user?: AuthenticatedUser;
@@ -33,10 +32,12 @@ type NotificationNamespace = Namespace<
   NotificationSocketData
 >;
 
+const FRONTEND_URL = 'http://localhost:5173';
+
 @WebSocketGateway({
-  namespace: '/notifications',
+  // namespace: '/notifications',
   cors: {
-    origin: process.env.FRONTEND_URL,
+    origin: FRONTEND_URL,
     credentials: true,
   },
 })
@@ -70,8 +71,6 @@ export class NotificationsGateway
    * Handle a successfully authenticated socket connection.
    */
   async handleConnection(client: NotificationSocket): Promise<void> {
-    console.log('connected client: => ', client);
-
     const user = client.data.user;
 
     // Disconnect if authentication middleware did not attach a user.
@@ -104,12 +103,13 @@ export class NotificationsGateway
    *
    * Call this after the transaction that saves the notification commits.
    */
-  emitToUser(recipientId: string, notification: Notifications): void {
-    this.server
-      .to(this.getUserRoom(recipientId))
-      .emit('notification:new', notification);
+  emitToUser(
+    recipientId: string,
+    payload: { unread_count: number | undefined },
+  ): void {
+    const user_room = this.getUserRoom(recipientId);
 
-    console.log(`notification emitted to user outside the app `);
+    this.server.to(user_room).emit('notification:new', payload);
   }
 
   /**

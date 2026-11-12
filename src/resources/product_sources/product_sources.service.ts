@@ -45,6 +45,7 @@ export class ProductSourcesService {
       supplier_sku,
       estimated_lead_time_days,
       cost_price,
+      is_primary,
     } = createProductSourceDto;
 
     if (!businessId) {
@@ -115,6 +116,7 @@ export class ProductSourcesService {
         supplier_sku,
         estimated_lead_time_days,
         cost_price,
+        is_primary,
       });
 
       const saved_product_source = await manager.save(

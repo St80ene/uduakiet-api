@@ -2,11 +2,11 @@ import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Public } from '../common/decorators/public.decorator';
 import { ApiResponse } from '../common/utils/response.utils';
 import { User } from '../resources/users/entities/user.entity';
 import { JwtRefreshGuard } from './guards/jwt_refresh.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {

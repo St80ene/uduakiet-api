@@ -7,15 +7,8 @@ import {
   Index,
 } from 'typeorm';
 import { PurchaseOrder } from './purchase_order.entity';
-import { Type } from 'class-transformer';
-import {
-  IsUUID,
-  IsInt,
-  Min,
-  IsArray,
-  ArrayMinSize,
-  ValidateNested,
-} from 'class-validator';
+
+import { Product } from '../../products/entities/product.entity';
 
 @Entity('purchase_order_items')
 export class PurchaseOrderItem {
@@ -34,33 +27,22 @@ export class PurchaseOrderItem {
   @Column({ type: 'int' })
   quantity_requested!: number;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'int', default: 0 })
   quantity_received!: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
   estimated_unit_cost!: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
   total_cost!: number;
 
   @ManyToOne(() => PurchaseOrder, (po) => po.items, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'purchase_order_id' })
   purchase_order!: PurchaseOrder;
-}
 
-export class ReceivePurchaseOrderItemDto {
-  @IsUUID()
-  item_id!: string;
-
-  @IsInt()
-  @Min(1)
-  quantity_received!: number;
-}
-
-export class ReceivePurchaseOrderDto {
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => ReceivePurchaseOrderItemDto)
-  items!: ReceivePurchaseOrderItemDto[];
+  @ManyToOne(() => Product, (product) => product.purchase_order_items, {
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({ name: 'product_id' })
+  product!: Product;
 }

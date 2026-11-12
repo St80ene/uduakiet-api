@@ -8,6 +8,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { PurchaseOrderItem } from './purchase_order_item.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
@@ -16,8 +17,8 @@ import { User } from '../../users/entities/user.entity';
 
 export enum PurchaseOrderStatus {
   DRAFT = 'DRAFT',
-  PENDING = 'PENDING',
   APPROVED = 'APPROVED',
+  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
   RECEIVED = 'RECEIVED',
   CANCELLED = 'CANCELLED',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
@@ -60,7 +61,7 @@ export class PurchaseOrder {
   @Column({ unique: true })
   po_number!: string;
 
-  @Column()
+  @Column({ type: 'varchar', length: 36 })
   supplier_id!: string;
 
   @Column({ type: 'varchar', length: 36 })
@@ -69,7 +70,11 @@ export class PurchaseOrder {
   @Column({ type: 'varchar', length: 36 })
   business_id!: string;
 
-  @Column({ type: 'varchar', length: 30, default: PurchaseOrderStatus.DRAFT })
+  @Column({
+    type: 'varchar',
+    length: 30,
+    default: PurchaseOrderStatus.DRAFT,
+  })
   status?: PurchaseOrderStatus;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
@@ -83,7 +88,11 @@ export class PurchaseOrder {
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'approved_by_id' })
-  user?: User | null;
+  approved_by?: User | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_id' })
+  created_by?: User | null;
 
   @OneToMany(() => PurchaseOrderItem, (item) => item.purchase_order, {
     cascade: true,
@@ -91,6 +100,7 @@ export class PurchaseOrder {
   items!: PurchaseOrderItem[];
 
   @ManyToOne(() => Supplier, {
+    nullable: false,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'supplier_id' })
@@ -107,4 +117,10 @@ export class PurchaseOrder {
 
   @UpdateDateColumn()
   updated_at!: Date;
+
+  @DeleteDateColumn({
+    type: 'datetime',
+    nullable: true,
+  })
+  deleted_at!: Date | null;
 }

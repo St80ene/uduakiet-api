@@ -268,7 +268,7 @@ export class NotificationPaginationQueryDto extends BasePaginationQueryDto {
     return value;
   })
   @IsBoolean()
-  isRead?: boolean;
+  is_read?: boolean;
 
   @IsOptional()
   @IsString()

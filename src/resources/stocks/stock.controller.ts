@@ -8,7 +8,6 @@ import {
   Query,
 } from '@nestjs/common';
 
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
 import { StocksService } from './stock.service';
@@ -17,9 +16,10 @@ import { StockPaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { UserRole } from '../../common/enum/user_role.enum';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRolePermissions } from '../../common/decorators/role_permission.decorator';
 import { UserPermission } from '../../common/enum/user_permission.enum';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @Controller('stocks')
 export class StocksController {
