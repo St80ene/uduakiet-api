@@ -1,5 +1,9 @@
+import { QueryRunner } from 'typeorm';
 import { UserPermission } from '../../common/enum/user_permission.enum';
 import { UserRole } from '../../common/enum/user_role.enum';
+import { Permission } from '../../auth/entities/permission.entity';
+import { Role } from '../../auth/entities/role.entity';
+import { RolePermissions } from '../../auth/entities/role_permissions.entity';
 
 const {
   PRODUCT_READ,
@@ -262,3 +266,79 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     ],
   },
 ];
+
+const describe = (name: string): string => {
+  const [resource, action] = name.split(':');
+  return `${action.replace(/_/g, ' ')} ${resource.replace(/_/g, ' ')}`;
+};
+
+export async function seedGlobalPermissionsAndRoles(
+  queryRunner: QueryRunner,
+  businessId: string,
+) {
+  const permissionRepository = queryRunner.manager.getRepository(Permission);
+  const roleRepository = queryRunner.manager.getRepository(Role);
+  const rolePermissionRepository =
+    queryRunner.manager.getRepository(RolePermissions);
+
+  // 1. Permissions are global: create only the ones that don't exist yet
+  const existingPermissions = await permissionRepository.find();
+  const byName = new Map(existingPermissions.map((p) => [p.name, p]));
+
+  const missingPermissions = All_Permissions.filter(
+    (name) => !byName.has(name),
+  ).map((name) =>
+    permissionRepository.create({ name, description: describe(name) }),
+  );
+  if (missingPermissions.length) {
+    const saved = await permissionRepository.save(missingPermissions);
+    saved.forEach((p) => byName.set(p.name, p));
+  }
+
+  // 2. Roles for this business: check if role exists for this business before saving
+  const roles: Role[] = [];
+  for (const definition of ROLE_DEFINITIONS) {
+    let role = await roleRepository.findOne({
+      where: {
+        name: definition.name,
+        business_id: businessId,
+      },
+    });
+
+    if (!role) {
+      role = await roleRepository.save(
+        roleRepository.create({
+          name: definition.name,
+          description: definition.description,
+          business_id: businessId,
+          is_system: true,
+        }),
+      );
+    }
+    roles.push(role);
+
+    // 3. Sync permissions for this role safely to avoid junction table unique constraint violations
+    const existingRolePermissions = await rolePermissionRepository.find({
+      where: { role_id: role.id },
+    });
+    const existingPermissionIds = new Set(
+      existingRolePermissions.map((rp) => rp.permission_id),
+    );
+
+    const missingRolePermissions = [...new Set(definition.permissions)]
+      .map((name) => byName.get(name)!.id)
+      .filter((permissionId) => !existingPermissionIds.has(permissionId)) // Only add missing junctions
+      .map((permissionId) =>
+        rolePermissionRepository.create({
+          role_id: role.id,
+          permission_id: permissionId,
+        }),
+      );
+
+    if (missingRolePermissions.length) {
+      await rolePermissionRepository.save(missingRolePermissions);
+    }
+  }
+
+  return roles;
+}
