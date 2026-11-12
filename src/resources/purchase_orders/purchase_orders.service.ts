@@ -589,12 +589,13 @@ export class PurchaseOrdersService {
 
     try {
       const manager = queryRunner.manager;
+      console.log('storeId', storeId);
 
       const purchaseOrder = await manager.findOne(PurchaseOrder, {
         where: {
           id: po_id,
           business_id: businessId,
-          ...(storeId && { store_id: storeId }),
+          // ...(storeId && { store_id: storeId }),
         },
         relations: { items: true },
         // lock: { mode: 'pessimistic_write' },
@@ -664,13 +665,13 @@ export class PurchaseOrdersService {
         // One-time receiving means the full requested quantity must arrive.
         if (!Number.isInteger(quantity) || quantity !== requested) {
           throw new BadRequestException(
-            `Product "${item.product_id}" must be received in full. Expected ${requested}.`,
+            `Product "${item.product.name}" must be received in full. Expected ${requested}.`,
           );
         }
 
         if (Number(item.quantity_received ?? 0) > 0) {
           throw new BadRequestException(
-            `Product "${item.product_id}" has already been received.`,
+            `Product "${item.product.name}" has already been received.`,
           );
         }
 
@@ -681,12 +682,12 @@ export class PurchaseOrdersService {
             id: item.product_id,
             business_id: businessId,
           },
-          lock: { mode: 'pessimistic_write' },
+          // lock: { mode: 'pessimistic_write' },
         });
 
         if (!product) {
           throw new NotFoundException(
-            `Product "${item.product_id}" not found.`,
+            `Product "${item.product.name}" not found.`,
           );
         }
 
@@ -1003,8 +1004,8 @@ export class PurchaseOrdersService {
       id,
       businessId,
       rejectedById,
-      PurchaseOrderStatus.APPROVED,
-      PurchaseOrderStatus.SENT_TO_SUPPLIER,
+      PurchaseOrderStatus.PENDING_APPROVAL,
+      PurchaseOrderStatus.DRAFT,
       //   {
       //   rejection_reason: reason.trim(),
       // }

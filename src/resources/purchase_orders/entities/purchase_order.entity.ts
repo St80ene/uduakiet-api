@@ -8,6 +8,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { PurchaseOrderItem } from './purchase_order_item.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
@@ -116,4 +117,10 @@ export class PurchaseOrder {
 
   @UpdateDateColumn()
   updated_at!: Date;
+
+  @DeleteDateColumn({
+    type: 'datetime',
+    nullable: true,
+  })
+  deleted_at!: Date | null;
 }

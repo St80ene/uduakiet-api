@@ -80,7 +80,7 @@ export class PurchaseOrdersController {
 
   @Patch(':id')
   @Roles([MANAGER, STOREMAN]) // Only higher management can update
-  @UserRolePermissions([UserPermission.PURCHASE_UPDATE])
+  // @UserRolePermissions([UserPermission.PURCHASE_UPDATE])
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, storeId }: AuthenticatedUser,
@@ -94,20 +94,20 @@ export class PurchaseOrdersController {
     );
   }
 
-  @Roles([STOREMAN, MANAGER]) // Only these roles can receive
   @Post(':id/receive')
-  @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
+  @Roles([STOREMAN, MANAGER]) // Only these roles can receive
+  // @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
   receive(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReceivePurchaseOrderDto,
     @CurrentUser() { businessId, storeId, id: receivedById }: AuthenticatedUser,
   ): Promise<ApiResponse<PurchaseOrder>> {
-    return this.poService.receive(id, dto, receivedById, businessId, storeId);
+    return this.poService.receive(id, dto, businessId, receivedById, storeId);
   }
 
   @Delete(':id')
   @Roles([STOREMAN, MANAGER]) // Destructive action restricted to Super Admin
-  @UserRolePermissions([UserPermission.PURCHASE_DELETE])
+  // @UserRolePermissions([UserPermission.PURCHASE_DELETE])
   remove_draft(
     @CurrentUser() { businessId }: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -115,9 +115,9 @@ export class PurchaseOrdersController {
     return this.poService.remove_draft(id, businessId);
   }
 
-  @Roles([STOREMAN])
   @Post(':id/submit-for-approval')
-  @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
+  @Roles([STOREMAN])
+  // @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
   submitForApproval(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, id: submittedById }: AuthenticatedUser,
@@ -125,9 +125,9 @@ export class PurchaseOrdersController {
     return this.poService.submitForApproval(id, businessId, submittedById);
   }
 
-  // @Roles([ADMIN, SUPER_ADMIN, MANAGER])
   @Patch(':id/approve')
-  @UserRolePermissions([UserPermission.PURCHASE_APPROVE])
+  @Roles([ADMIN, SUPER_ADMIN, MANAGER, STOREMAN])
+  // @UserRolePermissions([UserPermission.PURCHASE_APPROVE])
   approve(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, id: approvedById }: AuthenticatedUser,
@@ -135,9 +135,9 @@ export class PurchaseOrdersController {
     return this.poService.approve(id, businessId, approvedById);
   }
 
-  // @Roles([ADMIN, SUPER_ADMIN, MANAGER])
+  @Roles([ADMIN, SUPER_ADMIN, MANAGER, STOREMAN])
   @Patch(':id/mark-as-sent-to-supplier')
-  @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
+  // @UserRolePermissions([UserPermission.PURCHASE_MANAGE])
   markAsSentToSupplier(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, id: sentById }: AuthenticatedUser,
@@ -145,9 +145,9 @@ export class PurchaseOrdersController {
     return this.poService.markAsSentToSupplier(id, businessId, sentById);
   }
 
-  @Roles([ADMIN, SUPER_ADMIN, MANAGER])
+  @Roles([ADMIN, SUPER_ADMIN, MANAGER, STOREMAN])
   @Patch(':id/reject')
-  @UserRolePermissions([UserPermission.PURCHASE_REJECT])
+  // @UserRolePermissions([UserPermission.PURCHASE_REJECT])
   reject(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, id: rejectedById }: AuthenticatedUser,
@@ -157,8 +157,8 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id/cancel')
-  @Roles([ADMIN, SUPER_ADMIN, MANAGER])
-  @UserRolePermissions([UserPermission.PURCHASE_CANCEL])
+  @Roles([ADMIN, SUPER_ADMIN, MANAGER, STOREMAN])
+  // @UserRolePermissions([UserPermission.PURCHASE_CANCEL])
   cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() { businessId, id: cancelledById }: AuthenticatedUser,

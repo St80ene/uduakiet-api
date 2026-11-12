@@ -1431,6 +1431,11 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             default: 'CURRENT_TIMESTAMP',
             onUpdate: 'CURRENT_TIMESTAMP',
           },
+          {
+            name: 'deleted_at',
+            type: 'datetime',
+            isNullable: true,
+          },
         ],
       }),
       true,

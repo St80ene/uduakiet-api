@@ -7,7 +7,6 @@ import {
   IsUUID,
   IsInt,
   Min,
-  IsString,
   IsNotEmpty,
   IsOptional,
   IsBoolean,
@@ -43,9 +42,8 @@ export class ReceivePurchaseOrderDto {
 
 // Shared reason validation
 class PurchaseOrderReasonDto {
-  @NormalizeString()
-  @IsString()
   @IsNotEmpty()
+  @NormalizeString()
   @MinLength(5, {
     message: 'Reason must be at least 5 characters long.',
   })
