@@ -4,17 +4,17 @@ import { CreateAuditLogDto } from './dto/create-audit_log.dto';
 import { AuditLogQueryDto } from './dto/auditlog_query.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AuditLog } from './entities/audit_log.entity';
-import { AuditLogEntity } from '../../common/enum/audit_log.enum';
-import {
-  BasePaginationQueryDto,
-  PaginationMeta,
-} from '../../common/dto/pagination-query.dto';
-import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
+import { AuthenticatedUser } from '../../../auth/interfaces/authenticated-user.interface';
 import {
   ApiResponse,
   successResponse,
-} from '../../common/utils/response.utils';
-import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+} from '../../../common/utils/response.utils';
+import {
+  BasePaginationQueryDto,
+  PaginationMeta,
+} from '../../../common/dto/pagination-query.dto';
+import { AuditLogEntity } from '../../../common/enum/audit_log.enum';
+import { getPaginationOptions } from '../../../common/utils/helpers/get_pagination_options.util';
 
 @Injectable()
 export class AuditLogsService {

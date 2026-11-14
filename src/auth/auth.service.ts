@@ -20,11 +20,10 @@ import {
 
 import { User } from '../resources/users/entities/user.entity';
 import { UserAuth } from './entities/user_auth.entity';
-
-import { AuditLogsService } from '../resources/audit_logs/audit_logs.service';
 import { AuditLogAction, AuditLogEntity } from '../common/enum/audit_log.enum';
 import { ApiResponse, successResponse } from '../common/utils/response.utils';
 import { ConfigService } from '@nestjs/config';
+import { AuditLogsService } from '../observability/logging/audit_logs/audit_logs.service';
 
 @Injectable()
 export class AuthService {

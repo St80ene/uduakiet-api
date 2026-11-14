@@ -7,7 +7,7 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Public()
-  @Get('api/v1')
+  @Get()
   getHello(): { status: string; message: string } {
     return this.appService.getHello();
   }

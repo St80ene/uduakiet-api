@@ -2,9 +2,8 @@ import { IsEnum, IsObject, IsOptional, IsUUID } from 'class-validator';
 import {
   AuditLogAction,
   AuditLogEntity,
-} from '../../../common/enum/audit_log.enum';
-import { MaxObjectSize } from '../../../common/validators/max_object_size.validator';
-
+} from '../../../../common/enum/audit_log.enum';
+import { MaxObjectSize } from '../../../../common/validators/max_object_size.validator';
 export class CreateAuditLogDto {
   @IsEnum(AuditLogAction, { message: 'Invalid action type' })
   action!: AuditLogAction;

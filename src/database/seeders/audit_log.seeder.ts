@@ -3,11 +3,11 @@ import { faker } from '@faker-js/faker';
 import { randomUUID } from 'crypto';
 import { ITenantUser } from './tenant.seeder';
 import { Store } from '../../resources/stores/entities/store.entity';
-import { AuditLog } from '../../resources/audit_logs/entities/audit_log.entity';
 import {
   AuditLogAction,
   AuditLogEntity,
 } from '../../common/enum/audit_log.enum';
+import { AuditLog } from '../../observability/logging/audit_logs/entities/audit_log.entity';
 
 export async function seedGeneralAuditLogs(
   queryRunner: QueryRunner,

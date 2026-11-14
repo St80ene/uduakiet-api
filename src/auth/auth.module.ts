@@ -5,8 +5,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../resources/users/entities/user.entity';
 import { APP_GUARD } from '@nestjs/core';
 import { UserAuth } from './entities/user_auth.entity';
-import { AuditLog } from '../resources/audit_logs/entities/audit_log.entity';
-import { AuditLogsModule } from '../resources/audit_logs/audit_logs.module';
 import { Role } from './entities/role.entity';
 import { RolePermissions } from './entities/role_permissions.entity';
 import { Permission } from './entities/permission.entity';
@@ -17,6 +15,8 @@ import { JwtRefreshStrategy } from './strategies/refresh_jwt.strategy';
 import { JwtService } from '@nestjs/jwt';
 import { RolesGuard } from './guards/roles.guard';
 import { RolePermissionGuard } from './guards/role_permission.guard';
+import { AuditLogsModule } from '../observability/logging/audit_logs/audit_logs.module';
+import { AuditLog } from '../observability/logging/audit_logs/entities/audit_log.entity';
 
 @Module({
   imports: [

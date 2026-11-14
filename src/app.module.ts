@@ -1,9 +1,15 @@
-import { Logger, Module } from '@nestjs/common';
+import {
+  Logger,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { BusinessesModule } from './resources/business/business.module';
 import { StocksModule } from './resources/stocks/stock.module';
@@ -13,7 +19,6 @@ import { PurchaseOrdersModule } from './resources/purchase_orders/purchase_order
 import { SuppliersModule } from './resources/suppliers/suppliers.module';
 import { ProductSourcesModule } from './resources/product_sources/product_sources.module';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AuditLogsModule } from './resources/audit_logs/audit_logs.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './resources/dashboard/dashboard.module';
 import { ReportsModule } from './resources/reports/reports.module';
@@ -26,6 +31,12 @@ import { StockMovementsModule } from './resources/stock_movements/stock_movement
 import { OutboxModule } from './resources/outbox/outbox.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationsModule } from './resources/notifications/notifications.module';
+import { AuditLogsModule } from './observability/logging/audit_logs/audit_logs.module';
+import { RequestContextMiddleware } from './observability/context/request_context.middleware';
+import { RequestContextService } from './observability/context/request_content.service';
+import { AuthenticatedContextInterceptor } from './observability/context/authenticate_context_interceptor';
+import { MetricsModule } from './observability/metrics/metrics.module';
+import { HttpMetricsInterceptor } from './observability/metrics/http-metrics.interceptor';
 
 const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
 
@@ -69,20 +80,38 @@ const filePath = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
     StockMovementsModule,
     OutboxModule,
     NotificationsModule,
+    MetricsModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    RequestContextService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Automatically applies the limiter guard to EVERY route
     },
+    RequestContextService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuthenticatedContextInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpMetricsInterceptor,
+    },
   ],
 })
-export class AppModule {
+export class AppModule implements NestModule {
   private readonly logger = new Logger('DatabaseCheck');
 
   constructor(private readonly dataSource: DataSource) {}
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes({
+      path: '*',
+      method: RequestMethod.ALL,
+    });
+  }
 
   onModuleInit() {
     if (this.dataSource.isInitialized) {
