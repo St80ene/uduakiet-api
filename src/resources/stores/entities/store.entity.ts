@@ -12,10 +12,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Stock } from '../../stocks/entities/stock.entity';
-import { AuditLog } from '../../audit_logs/entities/audit_log.entity';
 import { Business } from '../../business/entities/business.entity';
 import { PurchaseOrder } from '../../purchase_orders/entities/purchase_order.entity';
 import { User } from '../../users/entities/user.entity';
+import { AuditLog } from '../../../observability/logging/audit_logs/entities/audit_log.entity';
 
 @Entity('stores')
 @Index(['business_id', 'code'], { unique: true })

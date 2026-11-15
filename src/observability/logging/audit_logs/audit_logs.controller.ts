@@ -1,10 +1,10 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { AuditLogsService } from './audit_logs.service';
 import { AuditLogQueryDto } from './dto/auditlog_query.dto';
-import { UserRole } from '../../common/enum/user_role.enum';
-import { UserPermission } from '../../common/enum/user_permission.enum';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
+import { UserRolePermissions } from '../../../auth/decorators/role_permission.decorator';
+import { Roles } from '../../../auth/decorators/roles.decorator';
+import { UserPermission } from '../../../common/enum/user_permission.enum';
+import { UserRole } from '../../../common/enum/user_role.enum';
 
 @Controller('audit-logs')
 export class AuditLogsController {

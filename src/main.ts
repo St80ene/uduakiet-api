@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   ClassSerializerInterceptor,
   Logger,
+  RequestMethod,
   ValidationPipe,
 } from '@nestjs/common';
 import helmet from 'helmet';
@@ -59,7 +60,14 @@ async function bootstrap() {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   expressApp.set('trust proxy', 1);
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', {
+    exclude: [
+      {
+        path: 'metrics',
+        method: RequestMethod.GET,
+      },
+    ],
+  });
 
   // Enable global validation and automatic type transformation
   app.useGlobalPipes(

@@ -10,9 +10,9 @@ import {
 import {
   AuditLogAction,
   AuditLogEntity,
-} from '../../../common/enum/audit_log.enum';
-import { Business } from '../../business/entities/business.entity';
-import { Store } from '../../stores/entities/store.entity';
+} from '../../../../common/enum/audit_log.enum';
+import { Business } from '../../../../resources/business/entities/business.entity';
+import { Store } from '../../../../resources/stores/entities/store.entity';
 
 export interface AuditMetaData {
   reason: string;

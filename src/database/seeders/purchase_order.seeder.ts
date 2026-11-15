@@ -5,11 +5,11 @@ import { randomUUID } from 'crypto';
 import { Store } from '../../resources/stores/entities/store.entity';
 import { Supplier } from '../../resources/suppliers/entities/supplier.entity';
 import { ITenantUser } from './tenant.seeder';
-import { AuditLog } from '../../resources/audit_logs/entities/audit_log.entity';
 import { AuditLogAction } from '../../common/enum/audit_log.enum';
 import { BusinessBlueprint, ScaleMetrics } from './business.seeder';
 import { PurchaseOrderStatus } from '../../resources/purchase_orders/entities/purchase_order.entity';
 import { ProductSource } from '../../resources/product_sources/entities/product_source.entity';
+import { AuditLog } from '../../observability/logging/audit_logs/entities/audit_log.entity';
 
 export async function seedPurchaseOrders(
   queryRunner: QueryRunner,

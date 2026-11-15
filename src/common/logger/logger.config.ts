@@ -1,6 +1,7 @@
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import { requestContextStorage } from '../../observability/context/request_context';
 
 interface LogInfo extends winston.Logform.TransformableInfo {
   timestamp?: string;
@@ -11,36 +12,57 @@ export const createLoggerConfig = () => {
   const isProduction = process.env.NODE_ENV === 'production';
   const shouldLogToFile = process.env.LOG_TO_FILE === 'true';
 
-  // 1. Base Console Transport (Mandatory for Local Dev & Cloud Aggregators)
+  // Attach request context to every log entry.
+  const requestContextFormat = winston.format((info) => {
+    const context = requestContextStorage.getStore();
+
+    if (!context) return info;
+
+    return {
+      ...info,
+      requestId: context.requestId,
+      ...(context.userId && { userId: context.userId }),
+      ...(context.businessId && {
+        businessId: context.businessId,
+      }),
+    };
+  });
+
   const transports: winston.transport[] = [
     new winston.transports.Console({
       level: isProduction ? 'info' : 'debug',
       format: winston.format.combine(
-        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.timestamp({
+          format: 'YYYY-MM-DD HH:mm:ss',
+        }),
         winston.format.errors({ stack: true }),
+        requestContextFormat(),
         isProduction
           ? winston.format.json()
           : winston.format.combine(
+              requestContextFormat(),
               winston.format.colorize(),
               winston.format.printf((info: LogInfo) => {
                 const { timestamp, level, message, context, ...meta } = info;
+
                 const contextStr =
                   typeof context === 'object' && context !== null
                     ? JSON.stringify(context)
                     : (context as string) || '';
 
-                const unknMessage = message !== undefined ? message : '';
-                let messageStr = '';
-                if (typeof unknMessage === 'object' && unknMessage !== null) {
-                  messageStr = JSON.stringify(unknMessage);
-                } else if (unknMessage !== undefined && unknMessage !== null) {
-                  messageStr = String(unknMessage);
-                }
+                const messageStr =
+                  message !== undefined && message !== null
+                    ? typeof message === 'object'
+                      ? JSON.stringify(message)
+                      : String(message)
+                    : '';
 
                 const metaStr = Object.keys(meta).length
                   ? JSON.stringify(meta)
                   : '';
+
                 const displayContext = contextStr ? `[${contextStr}] ` : '';
+
                 const displayTimestamp =
                   typeof timestamp === 'string' ? timestamp : '';
 
@@ -51,11 +73,13 @@ export const createLoggerConfig = () => {
     }),
   ];
 
-  // 2. Conditional File Transports (Only active if explicitly enabled for VPS/On-Premise deployments)
   if (shouldLogToFile) {
     const fileLogFormat = winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.timestamp({
+        format: 'YYYY-MM-DD HH:mm:ss',
+      }),
       winston.format.errors({ stack: true }),
+      requestContextFormat(),
       winston.format.json(),
     );
 
@@ -69,6 +93,7 @@ export const createLoggerConfig = () => {
         maxFiles: '14d',
         format: fileLogFormat,
       }),
+
       new DailyRotateFile({
         level: 'info',
         filename: 'logs/combined-%DATE%.log',

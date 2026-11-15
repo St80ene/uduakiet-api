@@ -7,12 +7,12 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import {
-  AuditLogAction,
-  AuditLogEntity,
-} from '../../../common/enum/audit_log.enum';
 import { Type } from 'class-transformer';
-import { MaxObjectSize } from '../../../common/validators/max_object_size.validator';
+import {
+  AuditLogEntity,
+  AuditLogAction,
+} from '../../../../common/enum/audit_log.enum';
+import { MaxObjectSize } from '../../../../common/validators/max_object_size.validator';
 
 export enum AuditLogSortBy {
   CREATED_AT = 'created_at',

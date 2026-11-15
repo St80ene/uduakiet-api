@@ -1,9 +1,9 @@
-import { AuditLogsService } from './../audit_logs/audit_logs.service';
 import {
   BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -40,16 +40,18 @@ import {
 } from '../../common/utils/response.utils';
 
 import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { getPaginationOptions } from '../../common/utils/helpers/get_pagination_options.util';
 import { allowedTransitions, UpdateProductDto } from './dto/update-product.dto';
 import { StockMovement } from '../stock_movements/entities/stock_movement.entity';
 import { generateRealisticSku } from '../../common/utils/helpers/sku_generator.util';
 import { Business } from '../business/entities/business.entity';
 import { Category } from '../categories/entities/category.entity';
+import { AuditLog } from '../../observability/logging/audit_logs/entities/audit_log.entity';
+import { AuditLogsService } from '../../observability/logging/audit_logs/audit_logs.service';
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,

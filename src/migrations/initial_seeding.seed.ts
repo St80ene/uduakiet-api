@@ -17,7 +17,7 @@ import { seedPurchaseOrders } from '../database/seeders/purchase_order.seeder';
 import { seedStoreStocksAndMovements } from '../database/seeders/stock.seeder';
 import { seedStoresForBusiness } from '../database/seeders/store.seeder';
 import { Store } from '../resources/stores/entities/store.entity';
-import { AuditLog } from '../resources/audit_logs/entities/audit_log.entity';
+import { AuditLog } from '../observability/logging/audit_logs/entities/audit_log.entity';
 
 /**
  * ============================================================

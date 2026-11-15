@@ -23,13 +23,13 @@ import {
 } from '../../common/dto/pagination-query.dto';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { ApiResponse } from '../../common/utils/response.utils';
-import { AuditLog } from '../audit_logs/entities/audit_log.entity';
 import { Product } from './entities/product.entity';
 import { UserRole } from '../../common/enum/user_role.enum';
 import { UserPermission } from '../../common/enum/user_permission.enum';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { UserRolePermissions } from '../../auth/decorators/role_permission.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { AuditLog } from '../../observability/logging/audit_logs/entities/audit_log.entity';
 
 @Controller('products')
 export class ProductsController {
