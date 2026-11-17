@@ -42,6 +42,26 @@ import { ProductSource } from '../product_sources/entities/product_source.entity
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { randomUUID } from 'node:crypto';
 
+export interface IProductPurchaseHistory {
+  purchase_order_id: string;
+  po_number: string;
+  status: PurchaseOrderStatus;
+  supplier_name: string;
+  store_name: string;
+  quantity_requested: number;
+  quantity_received: number;
+  unit_cost: number;
+  total_cost: number;
+  purchased_at: Date;
+}
+
+export type getProductPurchaseHistoryResponse = Promise<
+  ApiResponse<{
+    history: IProductPurchaseHistory[];
+    meta: PaginationMeta;
+  }>
+>;
+
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
@@ -52,7 +72,6 @@ export class PurchaseOrdersService {
   ) {}
 
   // CREATE: Generate a new Purchase Order with nested items
-
   async create(
     createPoDto: CreatePurchaseOrderDto,
     creatorId: string,
@@ -1141,6 +1160,104 @@ export class PurchaseOrdersService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async getProductPurchaseHistory(
+    productId: string,
+    businessId: string,
+    paginationQuery: PurchaseOrderPaginationQueryDto,
+    storeId?: string,
+  ): getProductPurchaseHistoryResponse {
+    const {
+      page = 1,
+      limit = 10,
+      order = 'DESC',
+      sortBy = 'created_at',
+    } = paginationQuery;
+
+    const sortColumn = PurchaseOrderSortFields[sortBy] || 'created_at';
+    const sortOrder = order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const orderDirection = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // Verify that the product belongs to this business.
+    const product = await this.dataSource.getRepository(Product).findOne({
+      where: {
+        id: productId,
+        business_id: businessId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found.');
+    }
+
+    const queryBuilder = this.purchaseOrderRepository
+      .createQueryBuilder('purchase_order')
+      .innerJoin('purchase_order.items', 'item')
+      .leftJoin('purchase_order.supplier', 'supplier')
+      .leftJoin('purchase_order.store', 'store')
+      .select([
+        'purchase_order.id AS purchase_order_id',
+        'purchase_order.po_number AS po_number',
+        'purchase_order.status AS status',
+        'purchase_order.created_at AS purchased_at',
+        'supplier.name AS supplier_name',
+        'store.name AS store_name',
+        'item.quantity_requested AS quantity_requested',
+        'item.quantity_received AS quantity_received',
+        'item.estimated_unit_cost AS unit_cost',
+        'item.total_cost AS total_cost',
+      ])
+      .where('purchase_order.business_id = :businessId', {
+        businessId,
+      })
+      .andWhere('item.product_id = :productId', {
+        productId,
+      });
+
+    if (storeId) {
+      queryBuilder.andWhere('purchase_order.store_id = :storeId', {
+        storeId,
+      });
+    }
+
+    const [rows, totalItems] = await Promise.all([
+      queryBuilder
+        .clone()
+        .orderBy(sortColumn, orderDirection)
+        .addOrderBy('purchase_order.id', 'DESC')
+        .limit(limit)
+        .offset((page - 1) * limit)
+        .getRawMany(),
+
+      queryBuilder.clone().getCount(),
+    ]);
+
+    const history = rows.map((row: IProductPurchaseHistory) => ({
+      ...row,
+      quantity_requested: Number(row.quantity_requested),
+      quantity_received: Number(row.quantity_received),
+      unit_cost: Number(row.unit_cost),
+      total_cost: Number(row.total_cost),
+    }));
+
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    return successResponse('Product purchase history retrieved successfully.', {
+      history,
+      meta: {
+        totalItems,
+        itemsPerPage: limit,
+        totalPages,
+        currentPage: page,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
   }
 
   // async getSupplierProducts(
