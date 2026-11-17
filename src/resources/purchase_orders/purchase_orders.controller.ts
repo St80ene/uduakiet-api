@@ -104,6 +104,20 @@ export class PurchaseOrdersController {
     return this.poService.findOne(id, businessId, storeId);
   }
 
+  @Get('products/:productId/history')
+  getProductPurchaseHistory(
+    @Param('productId') productId: string,
+    @CurrentUser() { businessId, storeId }: AuthenticatedUser,
+    @Query() query: PurchaseOrderPaginationQueryDto,
+  ) {
+    return this.poService.getProductPurchaseHistory(
+      productId,
+      businessId,
+      query,
+      storeId,
+    );
+  }
+
   // ============================================================
   // UPDATE DRAFT PURCHASE ORDER
   // ============================================================
