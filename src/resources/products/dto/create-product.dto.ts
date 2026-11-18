@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -34,17 +35,10 @@ export class CreateProductDto {
   @IsOptional()
   category_id?: string;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message: 'Selling price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0.01, {
-    message: 'Selling price must be greater than 0.',
-  })
-  @Type(() => Number)
-  selling_price!: number;
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  selling_price!: string;
 
   @IsNumber(
     { maxDecimalPlaces: 0 },

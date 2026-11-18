@@ -48,6 +48,7 @@ import { Business } from '../business/entities/business.entity';
 import { Category } from '../categories/entities/category.entity';
 import { AuditLog } from '../../observability/logging/audit_logs/entities/audit_log.entity';
 import { AuditLogsService } from '../../observability/logging/audit_logs/audit_logs.service';
+import { MoneyUtil } from '../../common/utils/money.utils';
 
 @Injectable()
 export class ProductsService {
@@ -147,10 +148,21 @@ export class ProductsService {
         productImages.push(...uploadedResults);
       }
 
+      if (!business) {
+        throw new UnauthorizedException(
+          'The authenticated user is not assigned to a valid business.',
+        );
+      }
+
+      const sellingPrice = this.convertSellingPriceToMinorUnits(
+        createProductDto.selling_price.toString(),
+        business.currency,
+      );
+
       const product = queryRunner.manager.create(Product, {
         name: createProductDto.name,
         description: createProductDto.description ?? null,
-        selling_price: createProductDto.selling_price,
+        selling_price: sellingPrice.toString(),
         sku:
           createProductDto.sku ??
           `${generateRealisticSku({ categoryName: category?.name ?? 'GEN', productName: createProductDto.name, brandName: business?.display_name })}`,
@@ -323,6 +335,16 @@ export class ProductsService {
     await queryRunner.startTransaction();
 
     try {
+      const business = await queryRunner.manager.findOne(Business, {
+        where: { id: user.businessId },
+      });
+
+      if (!business) {
+        throw new UnauthorizedException(
+          'The authenticated user is not assigned to a valid business.',
+        );
+      }
+
       const product = await queryRunner.manager.findOne(Product, {
         where: {
           id,
@@ -340,6 +362,13 @@ export class ProductsService {
       const oldProductDetails = structuredClone(product);
 
       const { imagesToDelete, status, ...productUpdates } = updateProductDto;
+
+      if (productUpdates.selling_price !== undefined) {
+        productUpdates.selling_price = this.convertSellingPriceToMinorUnits(
+          productUpdates.selling_price.toString(),
+          business.currency,
+        );
+      }
 
       let currentImages = [...(product.images ?? [])];
 
@@ -720,5 +749,18 @@ export class ProductsService {
     }
 
     return successResponse('Current stock retrieved successfully', stock);
+  }
+
+  private convertSellingPriceToMinorUnits(
+    amount: string,
+    currency: string,
+  ): string {
+    const minorAmount = MoneyUtil.toMinorUnits(amount, currency);
+
+    if (minorAmount < 0n) {
+      throw new BadRequestException('Selling price cannot be negative.');
+    }
+
+    return minorAmount.toString();
   }
 }

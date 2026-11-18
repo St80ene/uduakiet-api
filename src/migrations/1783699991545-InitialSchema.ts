@@ -831,9 +831,9 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'selling_price',
-            type: 'decimal',
-            precision: 12,
-            scale: 2,
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
           },
           {
             name: 'default_reorder_point',
@@ -1009,9 +1009,8 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'cost_price',
-            type: 'decimal',
-            precision: 12,
-            scale: 2,
+            type: 'bigint',
+            unsigned: true,
             default: 0,
           },
           {
@@ -1288,16 +1287,15 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'unit_cost_price',
-            type: 'decimal',
-            precision: 12,
-            scale: 2,
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
           },
           {
             name: 'unit_selling_price',
-            type: 'decimal',
-            precision: 12,
-            scale: 2,
-            isNullable: true,
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
           },
           {
             name: 'created_at',
@@ -1404,9 +1402,8 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'total_estimated_cost',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
+            type: 'bigint',
+            unsigned: true,
             default: 0,
           },
           {
@@ -1550,17 +1547,15 @@ export class InitialSchema1783699991545 implements MigrationInterface {
           },
           {
             name: 'estimated_unit_cost',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            default: 0.0,
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
           },
           {
             name: 'total_cost',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            default: 0.0,
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
           },
         ],
       }),

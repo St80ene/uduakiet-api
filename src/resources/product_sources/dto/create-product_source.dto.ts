@@ -2,10 +2,9 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
-  Min,
+  Matches,
 } from 'class-validator';
 
 export class CreateProductSourceDto {
@@ -29,15 +28,8 @@ export class CreateProductSourceDto {
   @Type(() => Number)
   estimated_lead_time_days?: number;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message: 'Cost price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Cost price cannot be negative.',
-  })
-  @Type(() => Number)
-  cost_price!: number; // Wholesaler cost price (moves dynamically per supplier)
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  cost_price!: string; // Wholesaler cost price (moves dynamically per supplier)
 }

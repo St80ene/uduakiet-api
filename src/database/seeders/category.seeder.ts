@@ -1,8 +1,10 @@
 import { QueryRunner } from 'typeorm';
 import { faker } from '@faker-js/faker';
 import { randomUUID } from 'crypto';
+
 import { PRODUCT_CATALOGS, ProductCatalogTemplate } from './factory/product';
 import { BusinessBlueprint } from './business.seeder';
+
 import {
   Product,
   ProductStatus,
@@ -10,12 +12,17 @@ import {
 import { Category } from '../../resources/categories/entities/category.entity';
 import { Supplier } from '../../resources/suppliers/entities/supplier.entity';
 import { ProductSource } from '../../resources/product_sources/entities/product_source.entity';
+import { MoneyUtil } from '../../common/utils/money.utils';
 
 interface ProductNameCandidate {
   template: ProductCatalogTemplate;
   brand?: string;
   variant?: string;
   name: string;
+}
+
+interface BusinessCurrencyRow {
+  currency: string;
 }
 
 export async function seedCategoryAndSuppliers(
@@ -29,8 +36,26 @@ export async function seedCategoryAndSuppliers(
   },
 ) {
   // ============================================================
-  // 0. RESOLVE BUSINESS PRODUCT CATALOG
+  // 0. RESOLVE BUSINESS CURRENCY AND PRODUCT CATALOG
   // ============================================================
+
+  const businessRows: unknown = await queryRunner.query(
+    `SELECT currency FROM businesses WHERE id = ? LIMIT 1`,
+    [businessId],
+  );
+
+  if (
+    !Array.isArray(businessRows) ||
+    businessRows.length === 0 ||
+    typeof businessRows[0]?.currency !== 'string'
+  ) {
+    throw new Error(`Could not resolve currency for business: ${businessId}`);
+  }
+
+  const currency = (businessRows[0] as BusinessCurrencyRow).currency;
+
+  const minorUnitDigits = MoneyUtil.getMinorUnitDigits(currency);
+
   const catalogKey =
     bizBlueprint.catalogType in PRODUCT_CATALOGS
       ? bizBlueprint.catalogType
@@ -47,14 +72,13 @@ export async function seedCategoryAndSuppliers(
   // ============================================================
   // 1. SEED CATEGORIES
   // ============================================================
+
   const categorySeedData: Partial<Category>[] = [];
 
   const catalogCategoryNames = [
     ...new Set(productCatalog.map((item) => item.category)),
   ];
 
-  // Ensure every catalog category exists so products do not
-  // accidentally fall back to an unrelated category.
   const totalCategories = Math.max(
     counts.categoryCount,
     catalogCategoryNames.length,
@@ -88,6 +112,7 @@ export async function seedCategoryAndSuppliers(
   // ============================================================
   // 2. SEED SUPPLIERS
   // ============================================================
+
   const supplierSeedData: Partial<Supplier>[] = [];
 
   for (let sup = 0; sup < counts.supplierCount; sup++) {
@@ -121,6 +146,7 @@ export async function seedCategoryAndSuppliers(
   // ============================================================
   // 3. BUILD PRODUCT NAME COMBINATIONS
   // ============================================================
+
   const productNameMap = new Map<string, ProductNameCandidate>();
 
   for (const template of productCatalog) {
@@ -130,6 +156,7 @@ export async function seedCategoryAndSuppliers(
     for (const brand of brands) {
       for (const variant of variants) {
         const name = [brand, template.name, variant].filter(Boolean).join(' ');
+
         const normalizedName = name.trim().toLowerCase();
 
         if (!productNameMap.has(normalizedName)) {
@@ -157,16 +184,23 @@ export async function seedCategoryAndSuppliers(
   // ============================================================
   // 4. SEED PRODUCTS
   // ============================================================
+
   const productSeedData: Partial<Product>[] = [];
   const generatedSkus = new Set<string>();
 
   for (let prodIndex = 0; prodIndex < counts.productCount; prodIndex++) {
     const combinationIndex = prodIndex % productNameCandidates.length;
+
     const variationNumber = Math.floor(
       prodIndex / productNameCandidates.length,
     );
 
     const candidate = productNameCandidates[combinationIndex];
+
+    if (!candidate) {
+      throw new Error('Could not resolve product name candidate.');
+    }
+
     const template = candidate.template;
 
     const productName =
@@ -186,13 +220,27 @@ export async function seedCategoryAndSuppliers(
 
     const description = `${productName} stocked by ${bizBlueprint.display_name}.`;
 
-    const sellingPrice = faker.number.float({
+    // Generate a major-unit amount using the currency's precision.
+    const sellingPriceMajor = faker.number.float({
       min: template.minPrice,
       max: template.maxPrice,
-      fractionDigits: 2,
+      fractionDigits: minorUnitDigits,
     });
 
+    // Convert to minor units before persisting.
+    const sellingPriceMinor = MoneyUtil.toMinorUnits(
+      sellingPriceMajor.toFixed(minorUnitDigits),
+      currency,
+    );
+
+    if (!template.imageUrls?.length) {
+      throw new Error(
+        `No image URLs configured for product template: ${template.name}`,
+      );
+    }
+
     const imageUrl = faker.helpers.arrayElement(template.imageUrls);
+
     const images = [
       {
         url: imageUrl,
@@ -201,6 +249,7 @@ export async function seedCategoryAndSuppliers(
     ];
 
     let sku: string;
+
     do {
       sku = `${bizBlueprint.prefix}-${faker.string.alphanumeric(6).toUpperCase()}`;
     } while (generatedSkus.has(sku));
@@ -218,7 +267,7 @@ export async function seedCategoryAndSuppliers(
       description,
       images,
       sku,
-      selling_price: sellingPrice,
+      selling_price: sellingPriceMinor.toString(),
       default_reorder_point: defaultReorderPoint,
       uom_type: template.uomType,
       uom_base_name: template.uomBaseName,
@@ -258,8 +307,9 @@ export async function seedCategoryAndSuppliers(
   }
 
   // ============================================================
-  // 5. SEED PRODUCT SOURCES (WITH `is_primary`)
+  // 5. SEED PRODUCT SOURCES
   // ============================================================
+
   const productSourcesSeedData: Partial<ProductSource>[] = [];
 
   for (const prod of productSeedData) {
@@ -275,24 +325,28 @@ export async function seedCategoryAndSuppliers(
           })
         : [];
 
+    // Product selling_price is already stored in minor units.
+    const sellingPriceMinor = BigInt(prod.selling_price);
+
     for (let i = 0; i < targetedSuppliers.length; i++) {
       const supplier = targetedSuppliers[i];
+
       if (!supplier.id) {
         continue;
       }
 
-      // The first supplier assigned to this product is marked as primary
       const is_primary = i === 0;
 
-      const costMarkupFactor = faker.number.float({
-        min: 0.65,
-        max: 0.85,
-        fractionDigits: 2,
+      // Generate a markup percentage between 65% and 85%.
+      // Using an integer avoids floating-point money calculations.
+      const costMarkupPercent = faker.number.int({
+        min: 65,
+        max: 85,
       });
 
-      const calculatedWholesaleCost = Number(
-        (prod.selling_price * costMarkupFactor).toFixed(2),
-      );
+      // Calculate cost in minor units and round to the nearest minor unit.
+      const calculatedWholesaleCost =
+        (sellingPriceMinor * BigInt(costMarkupPercent) + 50n) / 100n;
 
       const vendorCode = (supplier.name ?? 'SUP')
         .toUpperCase()
@@ -311,7 +365,7 @@ export async function seedCategoryAndSuppliers(
         product_id: prod.id,
         business_id: businessId,
         supplier_id: supplier.id,
-        cost_price: calculatedWholesaleCost,
+        cost_price: calculatedWholesaleCost.toString(),
         supplier_sku: supplierSku,
         estimated_lead_time_days: estimatedLeadTime,
         is_primary,

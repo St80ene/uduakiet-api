@@ -1,5 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
 import {
   StockMovementDirection,
   StockMovementType,
@@ -38,31 +47,15 @@ export class CreateStockDto {
   @Type(() => Number)
   initial_quantity!: number;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message:
-        'Unot Selling price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Unit Selling price cannot be negative.',
-  })
-  @Type(() => Number)
-  unit_selling_price!: number;
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  unit_selling_price!: string;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message:
-        'Unit Cost price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Unit Cost price cannot be negative.',
-  })
-  @Type(() => Number)
-  unit_cost_price!: number; // this should be gotten from the purchase order items table.(column unit_cost_price) when the stock is created from a purchase order.
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  unit_cost_price!: string; // this should be gotten from the purchase order items table.(column unit_cost_price) when the stock is created from a purchase order.
 
   @IsOptional()
   @NormalizeString()

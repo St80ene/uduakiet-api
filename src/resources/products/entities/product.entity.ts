@@ -69,11 +69,12 @@ export class Product extends BaseEntity {
   /**
    * Current/default selling price.
    */
-  @Column('decimal', {
-    precision: 12,
-    scale: 2,
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
   })
-  selling_price!: number; // Base retail floor price
+  selling_price!: string; // Base retail floor price
 
   /**
    * Quantity at or below which the product is considered low stock

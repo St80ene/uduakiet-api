@@ -1,0 +1,15 @@
+export const CURRENCY_MINOR_UNITS: Record<string, number> = {
+  NGN: 2,
+  USD: 2,
+  GHS: 2,
+  GBP: 2,
+  EUR: 2,
+  KES: 2,
+  ZAR: 2,
+  JPY: 0,
+  KRW: 0,
+  KWD: 3,
+  BHD: 3,
+  OMR: 3,
+  TND: 3,
+};

@@ -26,8 +26,12 @@ export class ProductSource {
   @Column({ type: 'varchar', length: 36, nullable: true })
   supplier_id!: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  cost_price!: number; // Wholesaler cost price (moves dynamically per supplier)
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
+  })
+  cost_price!: string; // Wholesaler cost price (moves dynamically per supplier)
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   supplier_sku?: string; // The external item code this vendor looks for on invoices

@@ -39,6 +39,7 @@ import {
   OutboxEventStatus,
   OutboxEventType,
 } from '../outbox/entities/outbox_events.entity';
+import { Store } from '../stores/entities/store.entity';
 
 @Injectable()
 export class StocksService {
@@ -101,13 +102,20 @@ export class StocksService {
        * ------------------------------------------------------------
        */
       const cheapestSource = await manager.findOne(ProductSource, {
-        where: { product_id: product.id, business_id: businessId },
-        order: { cost_price: 'ASC' },
+        where: {
+          product_id: product.id,
+          business_id: businessId,
+        },
+        order: {
+          cost_price: 'ASC',
+        },
       });
 
+      const sellingPriceMinor = BigInt(product.selling_price);
+
       const resolvedCostPrice = cheapestSource
-        ? Number(cheapestSource.cost_price)
-        : Number((product.selling_price * 0.75).toFixed(2));
+        ? BigInt(cheapestSource.cost_price)
+        : (sellingPriceMinor * 75n + 50n) / 100n;
 
       const stock = manager.create(Stock, {
         product_id,
@@ -127,7 +135,7 @@ export class StocksService {
         quantity: initial_quantity,
         quantity_before: 0,
         quantity_after: initial_quantity,
-        unit_cost_price: resolvedCostPrice, // 🌟 FIXED: References resolved vendor cost
+        unit_cost_price: resolvedCostPrice.toString(),
         unit_selling_price: product.selling_price,
       });
 
@@ -147,29 +155,33 @@ export class StocksService {
     payload: UpdateStockDto,
     user: AuthenticatedUser,
   ): Promise<ApiResponse<Stock>> {
-    const { businessId, storeId } = user;
+    const { businessId, storeId, id: userId } = user;
     const { product_id, physical_quantity, reason } = payload;
 
-    if (!Number.isInteger(physical_quantity) || physical_quantity < 0) {
+    if (!Number.isSafeInteger(physical_quantity) || physical_quantity < 0) {
       throw new BadRequestException(
         'Physical quantity must be a non-negative whole number.',
       );
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
+
     await queryRunner.connect();
     await queryRunner.startTransaction();
-    const manager = queryRunner.manager;
-
-    let response: ApiResponse<Stock>;
 
     try {
+      const manager = queryRunner.manager;
+
       /**
-       * 1. VALIDATE PRODUCT (belongs to business, not soft-deleted)
+       * 1. VALIDATE PRODUCT
        */
       const product = await manager.findOne(Product, {
-        where: { id: product_id, business_id: businessId },
+        where: {
+          id: product_id,
+          business_id: businessId,
+        },
       });
+
       if (!product) {
         throw new NotFoundException(
           `Product with ID "${product_id}" could not be found.`,
@@ -177,11 +189,9 @@ export class StocksService {
       }
 
       /**
-       * 2. LOCK OR CREATE THE BALANCE ROW
+       * 2. FIND AND LOCK STOCK BALANCE
        */
       const driverType = queryRunner.dataSource.driver.options.type;
-
-      // Fixed condition logic: SQLite doesn't support select-for-update locks, MySQL and Postgres do.
       const supportsLocks = driverType !== 'better-sqlite3';
 
       let stock = await manager.findOne(Stock, {
@@ -190,33 +200,32 @@ export class StocksService {
           store_id: storeId,
           business_id: businessId,
         },
-        relations: { store: true },
         ...(supportsLocks
           ? { lock: { mode: 'pessimistic_write' as const } }
           : {}),
       });
 
       if (!stock) {
-        stock = await manager.save(
-          manager.create(Stock, {
-            product_id,
-            store_id: storeId,
-            business_id: businessId,
-            current_quantity: 0,
-          }),
-        );
+        stock = manager.create(Stock, {
+          product_id,
+          store_id: storeId,
+          business_id: businessId,
+          current_quantity: 0,
+        });
+
+        stock = await manager.save(Stock, stock);
       }
 
-      const store_name = stock?.store?.name || '';
-
       /**
-       * 3. QUANTITY DIFFERENCE
+       * 3. CALCULATE PHYSICAL COUNT DIFFERENCE
        */
-      const quantity_before = stock.current_quantity;
-      const difference = physical_quantity - quantity_before;
+      const quantityBefore = stock.current_quantity;
+      const quantityAfter = physical_quantity;
+      const difference = quantityAfter - quantityBefore;
 
       if (difference === 0) {
         await queryRunner.commitTransaction();
+
         return successResponse(
           'Stock count matches the system quantity. No adjustment was made.',
           stock,
@@ -225,58 +234,77 @@ export class StocksService {
 
       const direction =
         difference > 0 ? StockMovementDirection.IN : StockMovementDirection.OUT;
+
       const quantity = Math.abs(difference);
 
       /**
-       * 4. UPDATE BALANCE + WRITE LEDGER ENTRY
+       * 4. UPDATE STOCK BALANCE
        */
-      stock.current_quantity = physical_quantity;
+      stock.current_quantity = quantityAfter;
+
       await manager.save(Stock, stock);
 
+      /**
+       * 5. RECORD STOCK MOVEMENT
+       */
       await manager.save(
         StockMovement,
         manager.create(StockMovement, {
           stock_id: stock.id,
           business_id: businessId,
-          created_by_id: user.id,
+          created_by_id: userId,
           type: StockMovementType.ADJUSTMENT,
           direction,
           quantity,
-          quantity_before,
-          quantity_after: physical_quantity,
+          quantity_before: quantityBefore,
+          quantity_after: quantityAfter,
           unit_selling_price: product.selling_price,
-          unit_cost_price: 0,
+          unit_cost_price: '0',
           reason,
         }),
       );
 
       /**
-       * 5. DETECT REORDER-LEVEL CROSSING (reached or passed, downward only)
+       * 6. DETECT LOW-STOCK TRANSITION
        */
       const reorderLevel = product.default_reorder_point ?? 5;
 
       const crossedReorderLevel =
         direction === StockMovementDirection.OUT &&
-        quantity_before > reorderLevel &&
-        physical_quantity <= reorderLevel;
+        quantityBefore > reorderLevel &&
+        quantityAfter <= reorderLevel;
 
-      const hit_zero = quantity_before > 0 && physical_quantity === 0;
+      const hitZero = quantityBefore > 0 && quantityAfter === 0;
 
-      if (crossedReorderLevel || hit_zero) {
-        const payload: Partial<LowStockEvent> = {
+      if (crossedReorderLevel || hitZero) {
+        const store = await manager.findOne(Store, {
+          where: {
+            id: storeId,
+            business_id: businessId,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+
+        const eventPayload: Partial<LowStockEvent> = {
           business_id: businessId,
           store_id: stock.store_id,
           product_id: product.id,
-          current_quantity: physical_quantity,
+          current_quantity: quantityAfter,
           reorder_point: reorderLevel,
           product_name: product.name,
-          store_name,
-          is_out_of_stock: physical_quantity === 0 ? true : false,
+          store_name: store?.name ?? '',
+          is_out_of_stock: quantityAfter === 0,
         };
 
-        // PUBLISH EVENT TO OUTBOX (for async processing by event worker)
-        // This uses the SAME transaction manager as the stock update
-        // and stock movement insert.
+        /**
+         * 7. PUBLISH EVENT TO OUTBOX
+         *
+         * The outbox record is committed atomically with the
+         * stock balance and movement ledger.
+         */
         await manager.save(
           OutboxEvent,
           manager.create(OutboxEvent, {
@@ -285,7 +313,7 @@ export class StocksService {
             aggregate_type: OutboxEventAggregateType.STOCKS,
             business_id: businessId,
             store_id: stock.store_id,
-            payload,
+            payload: eventPayload,
             status: OutboxEventStatus.PENDING,
             attempts: 0,
             available_at: new Date(),
@@ -297,7 +325,7 @@ export class StocksService {
 
       await queryRunner.commitTransaction();
 
-      response = successResponse(
+      return successResponse(
         'Stock level adjusted successfully via manual count.',
         stock,
       );
@@ -305,13 +333,13 @@ export class StocksService {
       if (queryRunner.isTransactionActive) {
         await queryRunner.rollbackTransaction();
       }
+
       throw error;
     } finally {
       await queryRunner.release();
     }
-
-    return response;
   }
+
   /**
    * Retrieves current stock balances.
    *
