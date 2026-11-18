@@ -3,9 +3,10 @@ import {
   IsEnum,
   IsNumber,
   IsNotEmpty,
-  IsOptional,
   IsUUID,
   Min,
+  IsString,
+  Matches,
 } from 'class-validator';
 import {
   StockMovementDirection,
@@ -53,30 +54,13 @@ export class CreateStockMovementDto {
   @Type(() => Number)
   quantity_before!: number;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message:
-        'Unit cost price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Unit cost price cannot be negative.',
-  })
-  @Type(() => Number)
-  unit_cost_price!: number;
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  unit_cost_price!: string;
 
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    {
-      message:
-        'Unit selling price must be a valid number with at most 2 decimals.',
-    },
-  )
-  @Min(0, {
-    message: 'Unit selling price cannot be negative.',
-  })
-  @Type(() => Number)
-  @IsOptional()
-  unit_selling_price?: number;
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+(\.\d+)?$/)
+  unit_selling_price?: string;
 }

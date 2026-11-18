@@ -93,11 +93,12 @@ export class StockMovement extends BaseEntity {
   /**
    * Historical cost snapshot at the time of the movement.
    */
-  @Column('decimal', {
-    precision: 12,
-    scale: 2,
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
   })
-  unit_cost_price!: number;
+  unit_cost_price!: string;
 
   /**
    * Historical selling price snapshot.
@@ -105,12 +106,12 @@ export class StockMovement extends BaseEntity {
    * This is useful for sales/reporting but may be null
    * for movements where selling price is irrelevant.
    */
-  @Column('decimal', {
-    precision: 12,
-    scale: 2,
-    nullable: true,
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
   })
-  unit_selling_price?: number | null;
+  unit_selling_price?: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   reason?: string;

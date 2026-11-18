@@ -34,13 +34,15 @@ export type PurchaseOrderListItem = Pick<
 };
 
 // What the driver really returns before conversion
-export type PurchaseOrderRawRow = Omit<
-  PurchaseOrderListItem,
-  'items_count' | 'total_estimated_cost'
-> & {
-  items_count: string | number;
-  total_estimated_cost: string | number;
-};
+export interface PurchaseOrderRawRow {
+  id: string;
+  po_number: string;
+  status: PurchaseOrderStatus;
+  total_estimated_cost: string;
+  created_at: Date;
+  supplier_name: string;
+  items_count: number | string;
+}
 
 @Entity('purchase_orders')
 @Index('idx_po_business_created', ['business_id', 'created_at'])
@@ -77,8 +79,12 @@ export class PurchaseOrder {
   })
   status?: PurchaseOrderStatus;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
-  total_estimated_cost!: number;
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
+  })
+  total_estimated_cost!: string;
 
   @Column()
   created_by_id!: string;

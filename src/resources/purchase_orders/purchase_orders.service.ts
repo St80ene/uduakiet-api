@@ -14,7 +14,6 @@ import {
 } from './dto/update-purchase_order.dto';
 import {
   PurchaseOrder,
-  PurchaseOrderListItem,
   PurchaseOrderRawRow,
   PurchaseOrderStatus,
 } from './entities/purchase_order.entity';
@@ -41,6 +40,8 @@ import {
 import { ProductSource } from '../product_sources/entities/product_source.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { randomUUID } from 'node:crypto';
+import { Business } from '../business/entities/business.entity';
+import { MoneyUtil } from '../../common/utils/money.utils';
 
 export interface IProductPurchaseHistory {
   purchase_order_id: string;
@@ -98,6 +99,25 @@ export class PurchaseOrdersService {
       if (!items?.length) {
         throw new BadRequestException(
           'A purchase order must contain at least one item.',
+        );
+      }
+
+      // Validate business and retrieve its currency.
+      const business = await manager.findOne(Business, {
+        where: { id: businessId },
+      });
+
+      if (!business) {
+        throw new NotFoundException('Business not found.');
+      }
+
+      const currency = business.currency;
+
+      try {
+        MoneyUtil.getMinorUnitDigits(currency);
+      } catch {
+        throw new BadRequestException(
+          `Unsupported business currency: ${currency}.`,
         );
       }
 
@@ -200,35 +220,51 @@ export class PurchaseOrdersService {
         Array<{
           product_id: string;
           quantity_requested: number;
-          estimated_unit_cost: number;
-          total_cost: number;
+          estimated_unit_cost: string;
+          total_cost: string;
         }>
       >();
 
       for (const item of items) {
         const source = source_by_product.get(item.product_id)!;
-        const unit_cost = Number(source.cost_price);
         const quantity = item.quantity_requested;
 
-        if (!Number.isFinite(unit_cost) || unit_cost < 0) {
+        // Validate supplier cost.
+        // cost_price is already stored in minor units.
+        if (
+          typeof source.cost_price !== 'string' ||
+          !/^\d+$/.test(source.cost_price)
+        ) {
           throw new BadRequestException(
             `Invalid supplier cost for product "${item.product_id}".`,
           );
         }
 
-        if (!Number.isInteger(quantity) || quantity < 1) {
+        const unit_cost = BigInt(source.cost_price);
+
+        if (unit_cost < 0n) {
+          throw new BadRequestException(
+            `Supplier cost cannot be negative for product "${item.product_id}".`,
+          );
+        }
+
+        // Validate quantity.
+        if (!Number.isSafeInteger(quantity) || quantity < 1) {
           throw new BadRequestException(
             `Invalid requested quantity for product "${item.product_id}".`,
           );
         }
+
+        // Calculate line total using BigInt.
+        const total_cost = MoneyUtil.multiply(unit_cost, quantity);
 
         const supplier_items = grouped_items.get(source.supplier_id) ?? [];
 
         supplier_items.push({
           product_id: item.product_id,
           quantity_requested: quantity,
-          estimated_unit_cost: unit_cost,
-          total_cost: quantity * unit_cost,
+          estimated_unit_cost: unit_cost.toString(),
+          total_cost: total_cost.toString(),
         });
 
         grouped_items.set(source.supplier_id, supplier_items);
@@ -236,9 +272,8 @@ export class PurchaseOrdersService {
 
       // Create one draft purchase order per supplier.
       for (const [supplierId, order_items] of grouped_items) {
-        const total_estimated_cost = order_items.reduce(
-          (sum, item) => sum + item.total_cost,
-          0,
+        const total_estimated_cost = MoneyUtil.sum(
+          order_items.map((item) => BigInt(item.total_cost)),
         );
 
         const purchaseOrder = manager.create(PurchaseOrder, {
@@ -250,7 +285,7 @@ export class PurchaseOrdersService {
           store_id: storeId,
           created_by_id: creator.id,
           status: PurchaseOrderStatus.DRAFT,
-          total_estimated_cost,
+          total_estimated_cost: total_estimated_cost.toString(),
         });
 
         const savedPo = await manager.save(PurchaseOrder, purchaseOrder);
@@ -334,7 +369,9 @@ export class PurchaseOrdersService {
       .where('purchase_order.business_id = :businessId', { businessId });
 
     if (storeId) {
-      queryBuilder.andWhere('purchase_order.store_id = :storeId', { storeId });
+      queryBuilder.andWhere('purchase_order.store_id = :storeId', {
+        storeId,
+      });
     }
 
     if (search) {
@@ -342,8 +379,7 @@ export class PurchaseOrdersService {
         new Brackets((qb) => {
           qb.where('purchase_order.po_number LIKE :search')
             .orWhere('purchase_order.status LIKE :search')
-            .orWhere('supplier.name LIKE :search')
-            .orWhere('purchase_order.status LIKE :search');
+            .orWhere('supplier.name LIKE :search');
         }),
         { search: `%${search}%` },
       );
@@ -351,23 +387,23 @@ export class PurchaseOrdersService {
 
     const orderByColumn =
       PurchaseOrderSortFields[sortColumn] ?? PurchaseOrderSortFields.created_at;
-    const orderDirection = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const countQuery = queryBuilder.clone();
 
     const dataQuery = queryBuilder
-      .orderBy(orderByColumn, orderDirection)
+      .orderBy(orderByColumn, sortOrder)
       .limit(limit)
       .offset((page - 1) * limit);
+
     const [rows, totalItems] = await Promise.all([
       dataQuery.getRawMany<PurchaseOrderRawRow>(),
       countQuery.getCount(),
     ]);
 
-    const purchase_orders: PurchaseOrderListItem[] = rows.map((row) => ({
+    const purchase_orders: PurchaseOrderRawRow[] = rows.map((row) => ({
       ...row,
       items_count: Number(row.items_count),
-      total_estimated_cost: Number(row.total_estimated_cost),
+      total_estimated_cost: String(row.total_estimated_cost ?? '0'),
     }));
 
     const totalPages = Math.ceil(totalItems / limit) || 1;
@@ -530,20 +566,22 @@ export class PurchaseOrdersService {
 
           if (existing_item) {
             existing_item.quantity_requested = item.quantity_requested;
-            existing_item.estimated_unit_cost = unit_cost;
-            existing_item.total_cost = total_cost;
+            existing_item.estimated_unit_cost = unit_cost.toString();
+            existing_item.total_cost = total_cost.toString();
 
             return existing_item;
           }
 
-          return manager.create(PurchaseOrderItem, {
+          const newItem = manager.create(PurchaseOrderItem, {
             purchase_order_id: purchaseOrder.id,
             product_id: item.product_id,
             quantity_requested: item.quantity_requested,
             quantity_received: 0,
-            estimated_unit_cost: unit_cost,
-            total_cost,
+            estimated_unit_cost: unit_cost.toString(),
+            total_cost: total_cost.toString(),
           });
+
+          return newItem;
         });
 
         // 7. Remove items no longer present in the updated list
@@ -567,7 +605,7 @@ export class PurchaseOrdersService {
           updated_items
             .reduce((sum, item) => sum + Number(item.total_cost), 0)
             .toFixed(2),
-        );
+        ).toString();
 
         await manager.save(PurchaseOrder, purchaseOrder);
       }
@@ -608,23 +646,21 @@ export class PurchaseOrdersService {
 
     try {
       const manager = queryRunner.manager;
-      console.log('storeId', storeId);
 
       const purchaseOrder = await manager.findOne(PurchaseOrder, {
         where: {
           id: po_id,
           business_id: businessId,
-          // ...(storeId && { store_id: storeId }),
+          ...(storeId && { store_id: storeId }),
         },
         relations: { items: true },
-        // lock: { mode: 'pessimistic_write' },
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!purchaseOrder) {
         throw new NotFoundException('Purchase order not found.');
       }
 
-      // Receiving is only allowed after the PO has been sent.
       if (purchaseOrder.status !== PurchaseOrderStatus.SENT_TO_SUPPLIER) {
         throw new BadRequestException(
           `Cannot receive a purchase order with status "${purchaseOrder.status}".`,
@@ -639,7 +675,6 @@ export class PurchaseOrdersService {
         throw new BadRequestException('Received items are required.');
       }
 
-      // Validate the receiving user.
       const receiver = await manager.findOne(User, {
         where: { id: receivedById, business_id: businessId },
       });
@@ -648,7 +683,6 @@ export class PurchaseOrdersService {
         throw new NotFoundException('Authorized receiving user not found.');
       }
 
-      // One receipt operation must account for every PO item.
       if (dto.items.length !== purchaseOrder.items.length) {
         throw new BadRequestException(
           'All purchase order items must be included in the receipt.',
@@ -681,8 +715,7 @@ export class PurchaseOrdersService {
         const quantity = receiptItem.quantity_received;
         const requested = Number(item.quantity_requested);
 
-        // One-time receiving means the full requested quantity must arrive.
-        if (!Number.isInteger(quantity) || quantity !== requested) {
+        if (!Number.isSafeInteger(quantity) || quantity !== requested) {
           throw new BadRequestException(
             `Product "${item.product.name}" must be received in full. Expected ${requested}.`,
           );
@@ -694,14 +727,24 @@ export class PurchaseOrdersService {
           );
         }
 
-        // Lock the product row. This serializes receipts for the same
-        // product, even when they come from different purchase orders.
+        // Validate stored monetary values.
+        // Both values are already represented in minor units.
+        if (
+          typeof item.estimated_unit_cost !== 'string' ||
+          !/^\d+$/.test(item.estimated_unit_cost)
+        ) {
+          throw new BadRequestException(
+            `Invalid estimated cost for product "${item.product.name}".`,
+          );
+        }
+
+        // Lock the product to serialize stock receipts for this product.
         const product = await manager.findOne(Product, {
           where: {
             id: item.product_id,
             business_id: businessId,
           },
-          // lock: { mode: 'pessimistic_write' },
+          lock: { mode: 'pessimistic_write' },
         });
 
         if (!product) {
@@ -710,31 +753,56 @@ export class PurchaseOrdersService {
           );
         }
 
-        // Find the stock record for this product and destination store.
+        if (
+          typeof product.selling_price !== 'string' ||
+          !/^\d+$/.test(product.selling_price)
+        ) {
+          throw new BadRequestException(
+            `Invalid selling price for product "${product.name}".`,
+          );
+        }
+
+        // Find and lock the stock record for this product and destination store.
         let stock = await manager.findOne(Stock, {
           where: {
             product_id: item.product_id,
             business_id: businessId,
             store_id: purchaseOrder.store_id,
           },
+          lock: { mode: 'pessimistic_write' },
         });
 
         const quantityBefore = stock ? Number(stock.current_quantity) : 0;
+
+        if (!Number.isSafeInteger(quantityBefore) || quantityBefore < 0) {
+          throw new BadRequestException(
+            `Invalid existing stock quantity for product "${product.name}".`,
+          );
+        }
+
+        const quantityAfter = quantityBefore + quantity;
+
+        if (!Number.isSafeInteger(quantityAfter)) {
+          throw new BadRequestException(
+            `Stock quantity exceeds the supported limit for product "${product.name}".`,
+          );
+        }
 
         if (!stock) {
           stock = manager.create(Stock, {
             product_id: item.product_id,
             business_id: businessId,
             store_id: purchaseOrder.store_id,
-            current_quantity: quantity,
+            current_quantity: quantityAfter,
           });
         } else {
-          stock.current_quantity = quantityBefore + quantity;
+          stock.current_quantity = quantityAfter;
         }
 
         const savedStock = await manager.save(Stock, stock);
 
-        // Record the actual stock movement.
+        // Record stock movement.
+        // Monetary values are copied directly as minor-unit strings.
         const movement = manager.create(StockMovement, {
           stock_id: savedStock.id,
           business_id: businessId,
@@ -743,9 +811,9 @@ export class PurchaseOrdersService {
           direction: StockMovementDirection.IN,
           quantity,
           quantity_before: quantityBefore,
-          quantity_after: quantityBefore + quantity,
-          unit_cost_price: Number(item.estimated_unit_cost),
-          unit_selling_price: Number(product.selling_price),
+          quantity_after: quantityAfter,
+          unit_cost_price: item.estimated_unit_cost,
+          unit_selling_price: product.selling_price,
         });
 
         await manager.save(StockMovement, movement);
@@ -754,12 +822,10 @@ export class PurchaseOrdersService {
         await manager.save(PurchaseOrderItem, item);
       }
 
-      // All lines have been received in full.
       purchaseOrder.status = PurchaseOrderStatus.RECEIVED;
 
       await manager.save(PurchaseOrder, purchaseOrder);
 
-      // Load the final PO and its items for the response.
       const updatedPurchaseOrder = await manager.findOne(PurchaseOrder, {
         where: { id: purchaseOrder.id },
         relations: { items: true, supplier: true, store: true },
@@ -773,7 +839,14 @@ export class PurchaseOrdersService {
       );
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw error;
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Unable to receive purchase order.',
+      );
     } finally {
       await queryRunner.release();
     }
