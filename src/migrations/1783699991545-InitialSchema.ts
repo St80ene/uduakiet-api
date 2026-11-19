@@ -1149,6 +1149,12 @@ export class InitialSchema1783699991545 implements MigrationInterface {
             default: 0,
           },
           {
+            name: 'average_unit_cost',
+            type: 'bigint',
+            unsigned: true,
+            default: 0,
+          },
+          {
             name: 'created_at',
             type: 'datetime',
             default: 'CURRENT_TIMESTAMP',

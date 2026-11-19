@@ -31,7 +31,6 @@ import {
 } from '../stock_movements/entities/stock_movement.entity';
 import { Product } from '../products/entities/product.entity';
 import { UpdateStockDto } from './dto/update-stock.dto';
-import { ProductSource } from '../product_sources/entities/product_source.entity';
 import {
   LowStockEvent,
   OutboxEvent,
@@ -40,6 +39,11 @@ import {
   OutboxEventType,
 } from '../outbox/entities/outbox_events.entity';
 import { Store } from '../stores/entities/store.entity';
+
+interface StockByUnit {
+  unit: string;
+  quantity: number;
+}
 
 @Injectable()
 export class StocksService {
@@ -56,6 +60,9 @@ export class StocksService {
   ): Promise<ApiResponse<Stock>> {
     const { businessId, storeId, id } = user;
     const { product_id, initial_quantity, direction } = payload;
+    const initialUnitCost = (
+      payload as CreateStockDto & { initial_unit_cost?: string }
+    ).initial_unit_cost;
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -97,31 +104,25 @@ export class StocksService {
       }
 
       /**
-       * ------------------------------------------------------------
-       * RESOLVE COST FOR BASE INITIAL ADJUSTMENT
-       * ------------------------------------------------------------
+       * Money is stored in minor currency units (for example, kobo).
        */
-      const cheapestSource = await manager.findOne(ProductSource, {
-        where: {
-          product_id: product.id,
-          business_id: businessId,
-        },
-        order: {
-          cost_price: 'ASC',
-        },
-      });
+      if (
+        typeof initialUnitCost !== 'string' ||
+        !/^\d+$/.test(initialUnitCost)
+      ) {
+        throw new BadRequestException(
+          'A valid initial unit cost in minor currency units is required.',
+        );
+      }
 
-      const sellingPriceMinor = BigInt(product.selling_price);
-
-      const resolvedCostPrice = cheapestSource
-        ? BigInt(cheapestSource.cost_price)
-        : (sellingPriceMinor * 75n + 50n) / 100n;
+      const initialCost = BigInt(initialUnitCost);
 
       const stock = manager.create(Stock, {
         product_id,
         business_id: businessId,
         store_id: storeId,
-        current_quantity: initial_quantity, // Initializing state values safely
+        current_quantity: initial_quantity,
+        average_unit_cost: initialCost.toString(),
       });
 
       await manager.save(Stock, stock);
@@ -135,7 +136,7 @@ export class StocksService {
         quantity: initial_quantity,
         quantity_before: 0,
         quantity_after: initial_quantity,
-        unit_cost_price: resolvedCostPrice.toString(),
+        unit_cost_price: initialCost.toString(),
         unit_selling_price: product.selling_price,
       });
 
@@ -217,9 +218,35 @@ export class StocksService {
       }
 
       /**
-       * 3. CALCULATE PHYSICAL COUNT DIFFERENCE
+       * 3. VALIDATE THE EXISTING INVENTORY VALUATION
        */
+      if (
+        typeof stock.average_unit_cost !== 'string' ||
+        !/^\d+$/.test(stock.average_unit_cost)
+      ) {
+        throw new BadRequestException(
+          'This stock record has an invalid average cost and must be reconciled.',
+        );
+      }
+
+      const averageUnitCost = BigInt(stock.average_unit_cost);
       const quantityBefore = stock.current_quantity;
+
+      if (quantityBefore > 0 && averageUnitCost === 0n) {
+        throw new BadRequestException(
+          'This stock has quantity but no recorded cost. Reconcile its opening valuation before adjusting it.',
+        );
+      }
+
+      if (quantityBefore === 0 && physical_quantity > 0) {
+        throw new BadRequestException(
+          'You cannot add opening stock through a physical-count adjustment without a known unit cost. Use the opening-stock flow.',
+        );
+      }
+
+      /**
+       * 4. CALCULATE PHYSICAL COUNT DIFFERENCE
+       */
       const quantityAfter = physical_quantity;
       const difference = quantityAfter - quantityBefore;
 
@@ -241,6 +268,8 @@ export class StocksService {
        * 4. UPDATE STOCK BALANCE
        */
       stock.current_quantity = quantityAfter;
+      stock.average_unit_cost =
+        quantityAfter === 0 ? '0' : averageUnitCost.toString();
 
       await manager.save(Stock, stock);
 
@@ -259,7 +288,7 @@ export class StocksService {
           quantity_before: quantityBefore,
           quantity_after: quantityAfter,
           unit_selling_price: product.selling_price,
-          unit_cost_price: '0',
+          unit_cost_price: averageUnitCost.toString(),
           reason,
         }),
       );
@@ -499,72 +528,115 @@ export class StocksService {
     }
 
     const result = await queryBuilder
-      .select('COALESCE(SUM(stock.quantity), 0)', 'totalStock')
+      .select('COALESCE(SUM(stock.current_quantity), 0)', 'total_stock')
       .addSelect(
         `
-        COALESCE(
-          SUM(
-            CASE
-              WHEN stock.quantity <= stock.reorder_level
-              THEN 1
-              ELSE 0
-            END
-          ),
-          0
-        )
-        `,
-        'lowStock',
+      COALESCE(
+        SUM(
+          CASE
+            WHEN stock.current_quantity <= product.default_reorder_point
+            THEN 1
+            ELSE 0
+          END
+        ),
+        0
+      )
+      `,
+        'low_stock',
       )
       .addSelect(
         `
-        COALESCE(
-          SUM(
-            CASE
-              WHEN stock.quantity = 0
-              THEN 1
-              ELSE 0
-            END
-          ),
-          0
-        )
-        `,
-        'outOfStock',
+      COALESCE(
+        SUM(
+          CASE
+            WHEN stock.current_quantity = 0
+            THEN 1
+            ELSE 0
+          END
+        ),
+        0
+      )
+      `,
+        'out_of_stock',
       )
       .addSelect(
         `
-        COALESCE(
-          SUM(stock.quantity * product.cost_price),
-          0
-        )
-        `,
-        'inventoryValue',
+      COALESCE(
+        SUM(stock.current_quantity * stock.average_unit_cost),
+        0
+      )
+      `,
+        'inventory_value',
       )
       .getRawOne<{
-        totalStock: string;
-        lowStock: string;
-        outOfStock: string;
-        inventoryValue: string;
+        total_stock: string;
+        low_stock: string;
+        out_of_stock: string;
+        inventory_value: string;
       }>();
 
     return [
       {
         id: 'total-stock',
         title: 'Total Stock',
-        value: Number(result?.totalStock ?? 0),
+        value: Number(result?.total_stock ?? 0),
         severity: 'success',
       },
       {
         id: 'low-stock',
         title: 'Low Stock',
-        value: Number(result?.lowStock ?? 0),
-        severity: Number(result?.lowStock ?? 0) > 0 ? 'warning' : 'success',
+        value: Number(result?.low_stock ?? 0),
+        severity: Number(result?.low_stock ?? 0) > 0 ? 'warning' : 'success',
       },
       {
         id: 'out-of-stock',
         title: 'Out of Stock',
-        value: Number(result?.outOfStock ?? 0),
-        severity: Number(result?.outOfStock ?? 0) > 0 ? 'danger' : 'success',
+        value: Number(result?.out_of_stock ?? 0),
+        severity: Number(result?.out_of_stock ?? 0) > 0 ? 'danger' : 'success',
+      },
+      {
+        id: 'inventory-value',
+        title: 'Inventory Value',
+        value: Number(result?.inventory_value ?? 0),
+        severity: 'success',
       },
     ];
+  }
+
+  async getTotalStockByUnit(user: AuthenticatedUser): Promise<StockByUnit[]> {
+    const query = this.stockRepository
+      .createQueryBuilder('stock')
+      .innerJoin('stock.product', 'product')
+      .select('product.uom_display_name', 'unit')
+      .addSelect('SUM(stock.current_quantity)', 'total_quantity')
+      .where('stock.business_id = :businessId', {
+        businessId: user.businessId,
+      })
+      .andWhere('product.deleted_at IS NULL')
+      .groupBy('product.uom_display_name');
+
+    if (user?.storeId) {
+      query.andWhere('stock.store_id = :storeId', { storeId: user.storeId });
+    }
+
+    const results = await query.getRawMany<{
+      unit: string;
+      total_quantity: string;
+    }>();
+
+    return results.map((item) => {
+      const unit = item.unit.toLowerCase();
+      let quantity = Number(item.total_quantity);
+
+      // Convert base units to their display units.
+      if (unit === 'kg' || unit === 'l') {
+        quantity /= 1000;
+      }
+
+      return {
+        unit: item.unit,
+        quantity: Number(quantity.toFixed(3)),
+      };
+    });
   }
 }

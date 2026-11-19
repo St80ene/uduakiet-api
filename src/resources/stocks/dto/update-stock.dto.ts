@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
 import { NormalizeString } from '../../../common/utils/helpers/formatters';
 
 export class UpdateStockDto {
@@ -25,4 +32,9 @@ export class UpdateStockDto {
 
   @IsOptional()
   supplier_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+$/)
+  adjustment_unit_cost?: string;
 }

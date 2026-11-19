@@ -173,7 +173,7 @@ export class StorePaginationQueryDto extends BasePaginationQueryDto {
 export const STOCK_SORT_FIELDS: Record<string, string> = {
   created_at: 'stock.created_at',
   updated_at: 'stock.updated_at',
-  quantity: 'stock.quantity',
+  quantity: 'stock.current_quantity',
   type: 'stock.type',
   reason: 'stock.reason',
   unit_cost_price: 'stock.unit_cost_price',

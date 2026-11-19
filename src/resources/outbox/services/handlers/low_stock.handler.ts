@@ -112,10 +112,6 @@ export class LowStockHandler {
       for (const { recipientId, payload } of notificationsToEmit) {
         this.notificationsGateway.emitToUser(recipientId, payload);
       }
-
-      this.logger.log(
-        `Processed low-stock event ${event_id} for ${recipients.length} recipient(s).`,
-      );
     } catch (error) {
       if (queryRunner.isTransactionActive) {
         await queryRunner.rollbackTransaction();
