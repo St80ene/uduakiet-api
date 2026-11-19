@@ -535,13 +535,13 @@ export class ProductsService {
   async getInventoryHealth(user: AuthenticatedUser): Promise<DashboardCard[]> {
     const productResult = await this.productRepository
       .createQueryBuilder('product')
-      .select('COUNT(product.id)', 'totalProducts')
+      .select('COUNT(product.id)', 'total_products')
       .where('product.deleted_at IS NULL')
       .andWhere('product.business_id = :businessId', {
         businessId: user.businessId,
       })
       .getRawOne<{
-        totalProducts: string;
+        total_products: string;
       }>();
 
     const stockQuery = this.stockRepository
@@ -559,13 +559,13 @@ export class ProductsService {
     }
 
     const stockResult = await stockQuery
-      .select('COALESCE(SUM(stock.quantity), 0)', 'totalStock')
+      .select('COALESCE(SUM(stock.current_quantity), 0)', 'total_stock')
       .addSelect(
         `
         COALESCE(
           SUM(
             CASE
-              WHEN stock.quantity <= stock.reorder_level
+              WHEN stock.current_quantity <= product.default_reorder_point
               THEN 1
               ELSE 0
             END
@@ -573,14 +573,14 @@ export class ProductsService {
           0
         )
         `,
-        'lowStock',
+        'low_stock',
       )
       .addSelect(
         `
         COALESCE(
           SUM(
             CASE
-              WHEN stock.quantity = 0
+              WHEN stock.current_quantity = 0
               THEN 1
               ELSE 0
             END
@@ -588,43 +588,43 @@ export class ProductsService {
           0
         )
         `,
-        'outOfStock',
+        'out_of_stock',
       )
       .addSelect(
         `
         COALESCE(
-          SUM(stock.quantity * product.cost_price),
+          SUM(stock.current_quantity * stock.average_unit_cost),
           0
         )
         `,
-        'inventoryValue',
+        'inventory_value',
       )
       .getRawOne<{
-        totalStock: string;
-        lowStock: string;
-        outOfStock: string;
-        inventoryValue: string;
+        total_stock: string;
+        low_stock: string;
+        out_of_stock: string;
+        inventory_value: string;
       }>();
 
     return [
       {
         id: 'products',
         title: 'Products',
-        value: Number(productResult?.totalProducts ?? 0),
+        value: Number(productResult?.total_products ?? 0),
         severity: 'success',
       },
       {
         id: 'stock',
         title: 'Total Stock',
-        value: Number(stockResult?.totalStock ?? 0),
+        value: Number(stockResult?.total_stock ?? 0),
         severity: 'success',
       },
       {
         id: 'low-stock',
         title: 'Low Stock',
-        value: Number(stockResult?.lowStock ?? 0),
+        value: Number(stockResult?.low_stock ?? 0),
         severity:
-          Number(stockResult?.lowStock ?? 0) > 0 ? 'warning' : 'success',
+          Number(stockResult?.low_stock ?? 0) > 0 ? 'warning' : 'success',
         subtitle: 'Products below reorder level',
         action: {
           label: 'Create Purchase Requests',
@@ -634,9 +634,9 @@ export class ProductsService {
       {
         id: 'out-of-stock',
         title: 'Out of Stock',
-        value: Number(stockResult?.outOfStock ?? 0),
+        value: Number(stockResult?.out_of_stock ?? 0),
         severity:
-          Number(stockResult?.outOfStock ?? 0) > 0 ? 'danger' : 'success',
+          Number(stockResult?.out_of_stock ?? 0) > 0 ? 'danger' : 'success',
       },
     ];
   }

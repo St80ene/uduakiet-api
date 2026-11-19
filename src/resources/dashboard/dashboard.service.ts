@@ -1,22 +1,54 @@
 import { Injectable } from '@nestjs/common';
+
 import { ProductsService } from '../products/products.service';
 import { PurchaseOrdersService } from '../purchase_orders/purchase_orders.service';
 import { StocksService } from '../stocks/stock.service';
+
 import { DashboardSection } from './interfaces/initial_interface';
 import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import {
+  ApiResponse,
+  successResponse,
+} from '../../common/utils/response.utils';
+
+type WarehouseDashboardSection = DashboardSection & {
+  stock_by_unit: Awaited<ReturnType<StocksService['getTotalStockByUnit']>>;
+};
+
+export interface DashboardResponse {
+  inventory: DashboardSection;
+  procurement: DashboardSection;
+  warehouse: WarehouseDashboardSection;
+}
 
 /**
- * This Service should be able to answer quotation that
- * pertain to decision making, using historical data required of a domain and the system.
- * It should tell a top executive,why we have certain data,
- * what we currently have, how we got here,
- * what is the context both past and present,
- * what information does this context offer,
- * what does it affect,
- * what opportunities do we have,
- * and how can we use this to come to a decision,
- * what decision would that be, what results are we looking,
- * how can we act and it and have results.
+ * DashboardService
+ *
+ * Responsible for aggregating dashboard sections and coordinating
+ * dashboard data from the respective domain services.
+ *
+ * Inventory:
+ * - Active products
+ * - Healthy products
+ * - Low-stock products
+ * - Out-of-stock products
+ * - Inventory health rate
+ *
+ * Procurement:
+ * - Open purchase orders
+ * - Awaiting approval
+ * - Awaiting delivery
+ * - Partially received
+ * - Completed this month
+ *
+ * Warehouse:
+ * - Stock receipts
+ * - Stock issuances
+ * - Stock adjustments
+ * - Total stock movements
+ * - Physical stock grouped by unit of measurement
+ *
+ * All metrics must be scoped to the authenticated business.
  */
 @Injectable()
 export class DashboardService {
@@ -26,44 +58,72 @@ export class DashboardService {
     private readonly stocksService: StocksService,
   ) {}
 
-  async getDashboard(user: AuthenticatedUser): Promise<{
-    inventory: DashboardSection;
-    procurement: DashboardSection;
-    warehouse: DashboardSection;
-  }> {
+  /**
+   * Returns the complete dashboard overview.
+   *
+   * @param user Authenticated user
+   * @param storeId Optional store filter
+   */
+  async getDashboard(
+    user: AuthenticatedUser,
+  ): Promise<ApiResponse<DashboardResponse>> {
     const [inventory, procurement, warehouse] = await Promise.all([
       this.getInventoryHealth(user),
-      this.getProcurementPipeline(),
+      this.getProcurementPipeline(user),
       this.getWarehouseOperations(user),
     ]);
 
-    return {
+    return successResponse('Dashboard metrics retrieved successfully', {
       inventory,
       procurement,
       warehouse,
-    };
+    });
   }
 
+  /**
+   * Inventory health overview.
+   */
   async getInventoryHealth(user: AuthenticatedUser): Promise<DashboardSection> {
+    const cards = await this.productsService.getInventoryHealth(user);
+
     return {
       title: 'Inventory Health',
-      cards: await this.productsService.getInventoryHealth(user),
+      cards,
     };
   }
 
-  async getProcurementPipeline(): Promise<DashboardSection> {
-    return {
-      title: 'Procurement Pipeline',
-      cards: await this.purchaseOrdersService.getPurchaseOrderPipeline(),
-    };
-  }
-
-  async getWarehouseOperations(
+  /**
+   * Procurement pipeline overview.
+   */
+  async getProcurementPipeline(
     user: AuthenticatedUser,
   ): Promise<DashboardSection> {
+    const cards =
+      await this.purchaseOrdersService.getPurchaseOrderPipeline(user);
+
+    return {
+      title: 'Procurement Pipeline',
+      cards,
+    };
+  }
+
+  /**
+   * Warehouse operations overview.
+   *
+   * Fetches movement metrics and physical stock grouped by UOM.
+   */
+  async getWarehouseOperations(
+    user: AuthenticatedUser,
+  ): Promise<WarehouseDashboardSection> {
+    const [cards, stockByUnit] = await Promise.all([
+      this.stocksService.getWarehouseMetrics(user),
+      this.stocksService.getTotalStockByUnit(user),
+    ]);
+
     return {
       title: 'Warehouse Operations',
-      cards: await this.stocksService.getWarehouseMetrics(user),
+      cards,
+      stock_by_unit: stockByUnit,
     };
   }
 }

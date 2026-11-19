@@ -45,8 +45,6 @@ export class OutboxProcessorService {
         return;
       }
 
-      this.logger.debug(`Found ${events.length} pending outbox event(s)`);
-
       for (const event of events) {
         await this.processEvent(event);
       }
@@ -84,10 +82,6 @@ export class OutboxProcessorService {
       event.last_error = null;
 
       await this.outboxRepository.save({ ...event });
-
-      this.logger.log(
-        `Published outbox event ${event.id} (${event.event_type})`,
-      );
     } catch (error) {
       await this.handleFailure(event, error);
     }

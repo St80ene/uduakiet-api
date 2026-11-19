@@ -53,6 +53,13 @@ export class Stock extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   current_quantity!: number;
 
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
+  })
+  average_unit_cost!: string;
+
   @ManyToOne(() => Product, (product) => product.stocks, {
     nullable: false,
     onDelete: 'RESTRICT',

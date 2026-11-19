@@ -82,8 +82,6 @@ export class NotificationsGateway
     // Join the room associated with this user.
     // Multiple connections belonging to the same user can join this room.
     await client.join(this.getUserRoom(user.id));
-
-    this.logger.log(`User ${user.id} connected to notifications`);
   }
 
   /**

@@ -42,6 +42,7 @@ import { Supplier } from '../suppliers/entities/supplier.entity';
 import { randomUUID } from 'node:crypto';
 import { Business } from '../business/entities/business.entity';
 import { MoneyUtil } from '../../common/utils/money.utils';
+import { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 
 export interface IProductPurchaseHistory {
   purchase_order_id: string;
@@ -788,21 +789,63 @@ export class PurchaseOrdersService {
           );
         }
 
+        const incomingUnitCost = BigInt(item.estimated_unit_cost);
+
+        let existingAverageCost = 0n;
+
+        if (stock) {
+          if (
+            typeof stock.average_unit_cost !== 'string' ||
+            !/^\d+$/.test(stock.average_unit_cost)
+          ) {
+            throw new BadRequestException(
+              `Invalid average cost for product "${product.name}".`,
+            );
+          }
+
+          existingAverageCost = BigInt(stock.average_unit_cost);
+
+          // Existing stock with quantity but no valuation must be reconciled.
+          // Otherwise this receipt would silently understate inventory value.
+          if (quantityBefore > 0 && existingAverageCost === 0n) {
+            throw new BadRequestException(
+              `Stock valuation for "${product.name}" requires reconciliation before receiving more stock.`,
+            );
+          }
+        }
+
+        // Weighted average cost:
+        // (existing quantity × existing average cost
+        //  + received quantity × received unit cost) / new quantity.
+        const existingInventoryValue =
+          BigInt(quantityBefore) * existingAverageCost;
+        const incomingInventoryValue = BigInt(quantity) * incomingUnitCost;
+        const totalQuantity = BigInt(quantityAfter);
+
+        // Round to the nearest minor currency unit (half up).
+        const newAverageCost =
+          (existingInventoryValue +
+            incomingInventoryValue +
+            totalQuantity / 2n) /
+          totalQuantity;
+
         if (!stock) {
           stock = manager.create(Stock, {
             product_id: item.product_id,
             business_id: businessId,
             store_id: purchaseOrder.store_id,
             current_quantity: quantityAfter,
+            average_unit_cost: newAverageCost.toString(),
           });
         } else {
           stock.current_quantity = quantityAfter;
+          stock.average_unit_cost = newAverageCost.toString();
         }
 
         const savedStock = await manager.save(Stock, stock);
 
-        // Record stock movement.
-        // Monetary values are copied directly as minor-unit strings.
+        // Keep the receipt's unit cost on the movement as a historical
+        // snapshot; Stock.average_unit_cost stores the current weighted average.
         const movement = manager.create(StockMovement, {
           stock_id: savedStock.id,
           business_id: businessId,
@@ -812,7 +855,7 @@ export class PurchaseOrdersService {
           quantity,
           quantity_before: quantityBefore,
           quantity_after: quantityAfter,
-          unit_cost_price: item.estimated_unit_cost,
+          unit_cost_price: incomingUnitCost.toString(),
           unit_selling_price: product.selling_price,
         });
 
@@ -925,7 +968,7 @@ export class PurchaseOrdersService {
   //     newDraft.supplier_id = supplierId;
 
   //     newDraft.items = productsToReplenish.map((product) => {
-  //       const replenishmentQty = Math.max(product.reorder_level * 2, 10);
+  //       const replenishmentQty = Math.max(product.default_reorder_point * 2, 10);
   //       return {
   //         product_id: product.id,
   //         quantity: replenishmentQty,
@@ -943,7 +986,7 @@ export class PurchaseOrdersService {
   //     const newItemsToAdd = productsToReplenish
   //       .filter((product) => !existingProductIds.has(product.id))
   //       .map((product) => {
-  //         const replenishmentQty = Math.max(product.reorder_level * 2, 10);
+  //         const replenishmentQty = Math.max(product.default_reorder_point * 2, 10);
   //         return {
   //           product_id: product.id,
   //           product_name: product.name,
@@ -959,13 +1002,15 @@ export class PurchaseOrdersService {
   //   }
   // }
 
-  async getPurchaseOrderPipeline(): Promise<DashboardCard[]> {
+  async getPurchaseOrderPipeline(
+    user: AuthenticatedUser,
+  ): Promise<DashboardCard[]> {
     const result: Record<string, any> | undefined =
       await this.purchaseOrderRepository
         .createQueryBuilder('purchase_order')
         .select(
           'SUM(CASE WHEN purchase_order.status = :pending THEN 1 ELSE 0 END)',
-          'pendingApproval',
+          'pending_approval',
         )
         .addSelect(
           'SUM(CASE WHEN purchase_order.status = :approved THEN 1 ELSE 0 END)',
@@ -973,7 +1018,7 @@ export class PurchaseOrdersService {
         )
         .addSelect(
           'SUM(CASE WHEN purchase_order.status = :sent THEN 1 ELSE 0 END)',
-          'sentToSupplier',
+          'sent_to_supplier',
         )
         .addSelect(
           'SUM(CASE WHEN purchase_order.status = :received THEN 1 ELSE 0 END)',
@@ -981,8 +1026,11 @@ export class PurchaseOrdersService {
         )
         .addSelect(
           'COALESCE(SUM(purchase_order.total_estimated_cost), 0)',
-          'totalEstimatedCost',
+          'total_estimated_cost',
         )
+        .where('business_id = :business_id', {
+          business_id: user.businessId,
+        })
         .setParameters({
           pending: PurchaseOrderStatus.PENDING_APPROVAL,
           approved: PurchaseOrderStatus.APPROVED,
@@ -990,16 +1038,16 @@ export class PurchaseOrdersService {
           received: PurchaseOrderStatus.RECEIVED,
         })
         .getRawOne<{
-          pendingApproval: string;
+          pending_approval: string;
           approved: string;
-          sentToSupplier: string;
+          sent_to_supplier: string;
           received: string;
-          totalEstimatedCost: string;
+          total_estimated_cost: string;
         }>();
 
     return [
       {
-        id: 'pending-approval',
+        id: 'pending_approval',
         title: 'Pending Approval',
         value: Number(result?.pendingApproval),
         severity: 'warning',
@@ -1022,7 +1070,7 @@ export class PurchaseOrdersService {
         severity: 'success',
       },
       {
-        id: 'estimated-cost',
+        id: 'estimated_cost',
         title: 'Estimated Procurement Cost',
         value: Number(result?.totalEstimatedCost),
       },
@@ -1369,7 +1417,7 @@ export class PurchaseOrdersService {
   //   // Get all products that are below their reorder threshold
   //   const lowStockProducts: Product[] = await this.productRepository
   //     .createQueryBuilder('product')
-  //     .where('product.stock_quantity <= product.reorder_level')
+  //     .where('product.stock_quantity <= product.default_reorder_point')
   //     .getMany();
 
   //   if (lowStockProducts?.length === 0) {

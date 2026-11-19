@@ -60,4 +60,8 @@ export class CreateStockDto {
   @IsOptional()
   @NormalizeString()
   reason?: string;
+
+  @IsString()
+  @Matches(/^\d+$/)
+  initial_unit_cost!: string;
 }
